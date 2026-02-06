@@ -1,0 +1,19 @@
+{
+  "topics": [
+    {
+      "key": "arrays",
+      "name": "Arrays",
+      "questions": [
+        { "title": "Two Sum", "slug": "two-sum", "difficulty": "Easy" },
+        { "title": "Contains Duplicate", "slug": "contains-duplicate", "difficulty": "Easy" }
+      ]
+    },
+    {
+      "key": "stack",
+      "name": "Stack",
+      "questions": [
+        { "title": "Valid Parentheses", "slug": "valid-parentheses", "difficulty": "Easy" }
+      ]
+    }
+  ]
+}

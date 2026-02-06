@@ -1,0 +1,11 @@
+{
+  "watch": ["index.js", "backend/src"],
+  "signal": "SIGTERM",
+  "delay": 500,
+  "ignore": [
+    "client/**",
+    "questions/data.json",
+    "node_modules/**",
+    "**/*.test.js"
+  ]
+}

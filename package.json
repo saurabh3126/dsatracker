@@ -1,0 +1,45 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "dev:clean": "node scripts/killPorts.js 3001 5173 5174 5175",
+    "dev:server": "set PORT=3001 && nodemon index.js",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "npm run dev:clean && concurrently -n server,client -c green,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "build:client": "npm --prefix client run build",
+    "build": "npm run build:client",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/e2e/"
+    ]
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "fs-extra": "^11.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.9.6"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0",
+    "supertest": "^7.0.0"
+  }
+}

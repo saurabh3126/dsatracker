@@ -1,0 +1,822 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "title": "Bubble Sort",
+      "leetcodeId": "N/A",
+      "topic": "Sorting Techniques",
+      "subTopic": "Basic Sorting",
+      "difficulty": "Easy",
+      "link": "https://leetcode.com/problems/sort-an-array",
+      "companies": [
+        "Amazon",
+        "Microsoft",
+        "Google"
+      ],
+      "coreConcept": "Repeatedly swap adjacent elements if they are in wrong order",
+      "approach": [
+        "Compare adjacent elements",
+        "Swap if left > right",
+        "Repeat for each pass",
+        "After each pass, largest element bubbles up to end"
+      ],
+      "commonPitfalls": [
+        "Forgetting to optimize with sorted array check",
+        "Not considering already sorted elements",
+        "Unnecessary comparisons in later passes"
+      ],
+      "timeComplexity": {
+        "best": "O(n)",
+        "average": "O(n²)",
+        "worst": "O(n²)"
+      },
+      "spaceComplexity": "O(1)",
+      "codeTemplate": "function bubbleSort(arr) {\n    for(let i = 0; i < arr.length; i++) {\n        for(let j = 0; j < arr.length-i-1; j++) {\n            if(arr[j] > arr[j+1]) {\n                [arr[j], arr[j+1]] = [arr[j+1], arr[j]];\n            }\n        }\n    }\n    return arr;\n}",
+      "patterns": [
+        "In-place sorting",
+        "Comparison based"
+      ],
+      "similarQuestions": [
+        "Selection Sort",
+        "Insertion Sort"
+      ]
+    },
+    {
+      "id": "2",
+      "title": "Two Sum",
+      "leetcodeId": "1",
+      "topic": "Arrays",
+      "subTopic": "Hash Table",
+      "difficulty": "Easy",
+      "link": "https://leetcode.com/problems/two-sum/",
+      "companies": [
+        "Amazon",
+        "Google",
+        "Facebook",
+        "Apple"
+      ],
+      "coreConcept": "Use hash map to store complement values",
+      "approach": [
+        "Use hash map to store numbers and their indices",
+        "For each number, check if its complement exists",
+        "Return indices if complement found"
+      ],
+      "commonPitfalls": [
+        "Not handling duplicate numbers",
+        "Using same element twice",
+        "Forgetting to check if complement exists before current index"
+      ],
+      "timeComplexity": {
+        "best": "O(n)",
+        "average": "O(n)",
+        "worst": "O(n)"
+      },
+      "spaceComplexity": "O(n)",
+      "codeTemplate": "function twoSum(nums, target) {\n    const map = new Map();\n    for(let i = 0; i < nums.length; i++) {\n        const complement = target - nums[i];\n        if(map.has(complement)) {\n            return [map.get(complement), i];\n        }\n        map.set(nums[i], i);\n    }\n    return [];\n}",
+      "patterns": [
+        "Hash Table",
+        "One-pass Solution"
+      ],
+      "similarQuestions": [
+        "3Sum",
+        "4Sum",
+        "Two Sum II"
+      ]
+    },
+    {
+      "id": "3",
+      "title": "Binary Search",
+      "leetcodeId": "704",
+      "topic": "Binary Search",
+      "subTopic": "1D Arrays",
+      "difficulty": "Easy",
+      "link": "https://leetcode.com/problems/binary-search/",
+      "companies": [
+        "Google",
+        "Amazon",
+        "Microsoft"
+      ],
+      "coreConcept": "Divide and conquer approach on sorted array",
+      "approach": [
+        "Initialize left and right pointers",
+        "Find mid point",
+        "Compare target with mid",
+        "Update pointers accordingly"
+      ],
+      "commonPitfalls": [
+        "Incorrect mid calculation (overflow)",
+        "Wrong boundary conditions",
+        "Infinite loop due to improper pointer updates"
+      ],
+      "timeComplexity": {
+        "best": "O(1)",
+        "average": "O(log n)",
+        "worst": "O(log n)"
+      },
+      "spaceComplexity": "O(1)",
+      "codeTemplate": "function binarySearch(nums, target) {\n    let left = 0, right = nums.length - 1;\n    while(left <= right) {\n        const mid = left + Math.floor((right - left) / 2);\n        if(nums[mid] === target) return mid;\n        if(nums[mid] < target) left = mid + 1;\n        else right = mid - 1;\n    }\n    return -1;\n}",
+      "patterns": [
+        "Binary Search",
+        "Two Pointers"
+      ],
+      "similarQuestions": [
+        "Search Insert Position",
+        "Search in Rotated Sorted Array"
+      ]
+    },
+    {
+      "id": "4",
+      "title": "Longest Palindromic Substring",
+      "leetcodeId": "5",
+      "topic": "Strings",
+      "subTopic": "Dynamic Programming",
+      "difficulty": "Medium",
+      "link": "https://leetcode.com/problems/longest-palindromic-substring/",
+      "companies": [
+        "Amazon",
+        "Microsoft",
+        "Facebook",
+        "Apple"
+      ],
+      "coreConcept": "Expand around center approach or Dynamic Programming",
+      "approach": [
+        "For each character, consider it as center",
+        "Expand around center for odd length palindromes",
+        "Expand around center for even length palindromes",
+        "Keep track of longest palindrome found"
+      ],
+      "commonPitfalls": [
+        "Not handling even length palindromes",
+        "Incorrect boundary checks",
+        "Inefficient DP implementation"
+      ],
+      "timeComplexity": {
+        "best": "O(n)",
+        "average": "O(n²)",
+        "worst": "O(n²)"
+      },
+      "spaceComplexity": "O(1)",
+      "codeTemplate": "function longestPalindrome(s) {\n    let start = 0, maxLength = 0;\n    \n    function expandAroundCenter(left, right) {\n        while(left >= 0 && right < s.length && s[left] === s[right]) {\n            const currLength = right - left + 1;\n            if(currLength > maxLength) {\n                start = left;\n                maxLength = currLength;\n            }\n            left--;\n            right++;\n        }\n    }\n    \n    for(let i = 0; i < s.length; i++) {\n        expandAroundCenter(i, i);   // odd length\n        expandAroundCenter(i, i+1); // even length\n    }\n    \n    return s.substring(start, start + maxLength);\n}",
+      "patterns": [
+        "Expand Around Center",
+        "Dynamic Programming"
+      ],
+      "similarQuestions": [
+        "Palindromic Substrings",
+        "Longest Palindromic Subsequence"
+      ]
+    },
+    {
+      "id": "5",
+      "title": "Reverse Linked List",
+      "leetcodeId": "206",
+      "topic": "Linked List",
+      "subTopic": "Single Linked List",
+      "difficulty": "Easy",
+      "link": "https://leetcode.com/problems/reverse-linked-list/",
+      "companies": [
+        "Google",
+        "Amazon",
+        "Microsoft",
+        "Apple"
+      ],
+      "coreConcept": "Iterative or recursive reversal of linked list pointers",
+      "approach": [
+        "Keep track of previous, current, and next nodes",
+        "Reverse links while traversing",
+        "Handle edge cases (empty list, single node)"
+      ],
+      "commonPitfalls": [
+        "Not saving next pointer before reversing",
+        "Not handling null cases",
+        "Memory leaks in recursive solution"
+      ],
+      "timeComplexity": {
+        "best": "O(n)",
+        "average": "O(n)",
+        "worst": "O(n)"
+      },
+      "spaceComplexity": "O(1)",
+      "codeTemplate": "function reverseList(head) {\n    let prev = null;\n    let curr = head;\n    \n    while(curr !== null) {\n        let next = curr.next;\n        curr.next = prev;\n        prev = curr;\n        curr = next;\n    }\n    \n    return prev;\n}",
+      "patterns": [
+        "Iterative",
+        "Three Pointers"
+      ],
+      "similarQuestions": [
+        "Reverse Linked List II",
+        "Palindrome Linked List"
+      ]
+    },
+    {
+      "id": "6",
+      "title": "Generate Parentheses",
+      "leetcodeId": "22",
+      "topic": "Recursion",
+      "subTopic": "Backtracking",
+      "difficulty": "Medium",
+      "link": "https://leetcode.com/problems/generate-parentheses/",
+      "companies": [
+        "Google",
+        "Uber",
+        "Facebook"
+      ],
+      "coreConcept": "Backtracking with valid parentheses rules",
+      "approach": [
+        "Track open and closed parentheses count",
+        "Add open parenthesis if count < n",
+        "Add closed parenthesis if closed < open",
+        "Backtrack when invalid"
+      ],
+      "commonPitfalls": [
+        "Not tracking counts properly",
+        "Wrong base case",
+        "Incorrect backtracking implementation"
+      ],
+      "timeComplexity": {
+        "best": "O(4^n/√n)",
+        "average": "O(4^n/√n)",
+        "worst": "O(4^n/√n)"
+      },
+      "spaceComplexity": "O(n)",
+      "codeTemplate": "function generateParenthesis(n) {\n    const result = [];\n    \n    function backtrack(open, closed, str) {\n        if(str.length === 2*n) {\n            result.push(str);\n            return;\n        }\n        \n        if(open < n) backtrack(open+1, closed, str+'(');\n        if(closed < open) backtrack(open, closed+1, str+')');\n    }\n    \n    backtrack(0, 0, '');\n    return result;\n}",
+      "patterns": [
+        "Backtracking",
+        "String Building"
+      ],
+      "similarQuestions": [
+        "Valid Parentheses",
+        "Remove Invalid Parentheses"
+      ]
+    },
+    {
+      "id": "7",
+      "title": "Number of 1 Bits",
+      "leetcodeId": "191",
+      "topic": "Bit Manipulation",
+      "subTopic": "Bit Counting",
+      "difficulty": "Easy",
+      "link": "https://leetcode.com/problems/number-of-1-bits/",
+      "companies": [
+        "Apple",
+        "Microsoft"
+      ],
+      "coreConcept": "Bit manipulation to count set bits",
+      "approach": [
+        "Use n & (n-1) to clear least significant bit",
+        "Count number of operations needed",
+        "Alternative: Use built-in methods"
+      ],
+      "commonPitfalls": [
+        "Not handling negative numbers",
+        "Infinite loop with wrong bit manipulation",
+        "Overflow issues"
+      ],
+      "timeComplexity": {
+        "best": "O(1)",
+        "average": "O(1)",
+        "worst": "O(1)"
+      },
+      "spaceComplexity": "O(1)",
+      "codeTemplate": "function hammingWeight(n) {\n    let count = 0;\n    while(n !== 0) {\n        n &= (n - 1);\n        count++;\n    }\n    return count;\n}",
+      "patterns": [
+        "Bit Manipulation",
+        "Brian Kernighan's Algorithm"
+      ],
+      "similarQuestions": [
+        "Counting Bits",
+        "Binary Watch"
+      ]
+    },
+    {
+      "id": "8",
+      "title": "Valid Parentheses",
+      "leetcodeId": "20",
+      "topic": "Stack & Queue",
+      "subTopic": "Stack",
+      "difficulty": "Easy",
+      "link": "https://leetcode.com/problems/valid-parentheses/",
+      "companies": [
+        "Google",
+        "Amazon",
+        "Facebook"
+      ],
+      "coreConcept": "Using stack to match parentheses pairs",
+      "approach": [
+        "Push opening brackets onto stack",
+        "Pop and compare for closing brackets",
+        "Check if stack is empty at end"
+      ],
+      "commonPitfalls": [
+        "Not handling empty string",
+        "Not checking stack emptiness at end",
+        "Wrong bracket matching"
+      ],
+      "timeComplexity": {
+        "best": "O(n)",
+        "average": "O(n)",
+        "worst": "O(n)"
+      },
+      "spaceComplexity": "O(n)",
+      "codeTemplate": "function isValid(s) {\n    const stack = [];\n    const map = {\n        '(': ')',\n        '{': '}',\n        '[': ']'\n    };\n    \n    for(let char of s) {\n        if(map[char]) {\n            stack.push(char);\n        } else {\n            if(map[stack.pop()] !== char) return false;\n        }\n    }\n    \n    return stack.length === 0;\n}",
+      "patterns": [
+        "Stack",
+        "String Processing"
+      ],
+      "similarQuestions": [
+        "Generate Parentheses",
+        "Longest Valid Parentheses"
+      ]
+    },
+    {
+      "id": "9",
+      "title": "Merge k Sorted Lists",
+      "leetcodeId": "23",
+      "topic": "Heaps",
+      "subTopic": "Priority Queue",
+      "difficulty": "Hard",
+      "link": "https://leetcode.com/problems/merge-k-sorted-lists/",
+      "companies": [
+        "Amazon",
+        "Google",
+        "Microsoft",
+        "Facebook"
+      ],
+      "coreConcept": "Using min heap to merge multiple sorted lists",
+      "approach": [
+        "Create min heap with first elements",
+        "Pop minimum element and add to result",
+        "Push next element from same list",
+        "Repeat until heap empty"
+      ],
+      "commonPitfalls": [
+        "Not handling empty lists",
+        "Incorrect heap implementation",
+        "Memory management issues"
+      ],
+      "timeComplexity": {
+        "best": "O(N log k)",
+        "average": "O(N log k)",
+        "worst": "O(N log k)"
+      },
+      "spaceComplexity": "O(k)",
+      "codeTemplate": "function mergeKLists(lists) {\n    const minHeap = new MinHeap();\n    \n    // Add first elements\n    for(let i = 0; i < lists.length; i++) {\n        if(lists[i]) minHeap.push([lists[i].val, i]);\n    }\n    \n    const dummy = new ListNode(0);\n    let curr = dummy;\n    \n    while(!minHeap.isEmpty()) {\n        const [val, listIndex] = minHeap.pop();\n        curr.next = lists[listIndex];\n        curr = curr.next;\n        lists[listIndex] = lists[listIndex].next;\n        \n        if(lists[listIndex]) {\n            minHeap.push([lists[listIndex].val, listIndex]);\n        }\n    }\n    \n    return dummy.next;\n}",
+      "patterns": [
+        "Priority Queue",
+        "Divide and Conquer"
+      ],
+      "similarQuestions": [
+        "Merge Two Sorted Lists",
+        "Ugly Number II"
+      ]
+    },
+    {
+      "id": "1738449961397",
+      "dateAdded": "2025-02-01T22:46:01.397Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Power Of Two",
+      "link": "https://leetcode.com/problems/power-of-two/description/",
+      "topic": "Bit Manipulation",
+      "difficulty": "Easy",
+      "coreConcept": "A number n is a power of two if there exists an integer k such that \n𝑛\n=\n2\n𝑘\n. In binary representation, this means that the number has exactly one 1 bit. For example:\n\n1\n in binary is 0001\n\n2\n in binary is 0010\n\n4\n in binary is 0100",
+      "approach": [
+        "Approach Steps Check for non-positive numbers: A power of two is always a positive integer. If n <= 0, return false.  Binary manipulation: Use bitwise operations to check if n is a power of two.  A power of two has exactly one 1 bit in its binary representation.  Using the property  𝑛 & ( 𝑛 − 1 ) :  If n is a power of two,  𝑛 & ( 𝑛 − 1 )  results in 0.  For example, if  𝑛 = 4 ,  𝑛 = 100 2  and  𝑛 − 1 = 011 2 ; hence,  𝑛 & ( 𝑛 − 1 ) = 100 & 011 = 000 ."
+      ],
+      "pitfalls": [
+        "Common Pitfalls Zero and Negative Numbers: Ensure to handle cases where n is zero or negative. These should not be considered powers of two.  Bitwise Operators Precedence: Remember that bitwise operators have lower precedence than equality operators. Always use parentheses to ensure the correct order of operations."
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    bool isPowerOfTwo(int n) {\n        if (n <= 0) {\n            return false;\n        }\n        return (n & (n - 1)) == 0;\n    }\n};\n",
+      "timeComplexity": "O(1)",
+      "spaceComplexity": "O(1)",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738673854972",
+      "dateAdded": "2025-02-04T12:57:34.972Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Two Sum",
+      "link": "https://leetcode.com/problems/two-sum/description/",
+      "topic": "Arrays",
+      "difficulty": "Easy",
+      "coreConcept": "Easy sa hai, o(n)^2 for for loop laga ke\nUnordered_map laga ke o(n)\n\nFinding the a,b which is equal to target",
+      "approach": [
+        "take every a and find for b. "
+      ],
+      "pitfalls": [
+        "Unordered_map me do check for -> numMap.count(other_num) && numMap[other_num] != i"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        unordered_map<int, int> numMap;\n        int n = nums.size();\n\n        // Build the hash table\n        for (int i = 0; i < n; i++) {\n            numMap[nums[i]] = i;\n        }\n\n        // Find the complement\n        for (int i = 0; i < n; i++) {\n            int complement = target - nums[i];\n            if (numMap.count(complement) && numMap[complement] != i) {\n                return {i, numMap[complement]};\n            }\n        }\n\n        return {}; // No solution found\n    }\n};",
+      "timeComplexity": "O(n) && o(n^2)",
+      "spaceComplexity": "o(n) map space",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738674498726",
+      "dateAdded": "2025-02-04T13:08:18.726Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Best Time to Buy and Sell Stock",
+      "link": "https://leetcode.com/problems/best-time-to-buy-and-sell-stock/description/",
+      "topic": "Arrays",
+      "difficulty": "Easy",
+      "coreConcept": "Any number could be picked(i+1..n) after picking i , also this is clear that if sum gets less than 0 then make it 0 simple kadane approach. Then take in between numbers and sum their differences and maximum diff is answer.",
+      "approach": [
+        "To think is to experiment in this question, after 20 mins realised the difference of elements can be a way to come up with the solution."
+      ],
+      "pitfalls": [
+        "Too much time took",
+        "Stuck at a place where u cannot see any pattern for sorting, priority, sliding, O(n)^2 at worst.",
+        "Look for properties of array like sum, prefix matching , when all above fails"
+      ],
+      "codeTemplate": "// int n=prices.size();\n        // int a=0;\n        // int m=0;\n        // if(prices.size()==1)return 0;\n        // for(int i=1; i<n; i++){\n        //     a+=prices[i]-prices[i-1];\n        //     if(a<0){\n        //         a=0;\n        //     }\n        //     m=max(m,a);\n        // }\n        // return m;",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738675220860",
+      "dateAdded": "2025-02-04T13:20:20.860Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Next Permutation",
+      "link": "https://leetcode.com/problems/next-permutation/description/",
+      "topic": "Arrays",
+      "difficulty": "Medium",
+      "coreConcept": "Trick based\n\nEx. 2 1 3 4 5 0 0\n\nTake the first dip(idx) from the last(n-2)->0 n-2 cause arr[i]<arr[i+1] will give error else\nThen swapping idx with the smallest larger number than it\nThen swap them and reverse the array from idx+1 to arr.size()",
+      "approach": [
+        "Its like a dictionary where we find prefix matching and sort things to get the right word according to the number",
+        "Common pitfalls include",
+        "Actually nothing, its either u know it or not. I wasn;t able to think this So just remember it."
+      ],
+      "pitfalls": [
+        "Null"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    void nextPermutation(vector<int>& nums) {\n        int j=-1;\n        for(int i=nums.size()-2; i>=0; i--){\n            if(nums[i]<nums[i+1]){\n                j=i;// 2 1 5 4 3 0 0 -> 1 is a dip\n                break;\n            }\n        }\n        if(j==-1){\n            reverse(nums.begin(),nums.end());\n            return;\n        }\n        // Swapping with the smallest largest.-> 3\n        for(int i=nums.size()-1; i>j;i--){\n            if(nums[j]<nums[i]){\n                swap(nums[i],nums[j]);\n                break;\n            }\n        }\n        //reverse from j+1 to get the smallest-> 2 3 5 4 1 0 0-> 2 3 0 0 1 4 5\n\n        reverse(nums.begin()+j+1, nums.end());\n    }\n};",
+      "timeComplexity": "o(n)",
+      "spaceComplexity": "o(n)--> o(n)^e {exponential using next_permutation}",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738675643727",
+      "dateAdded": "2025-02-04T13:27:23.727Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "3SUM",
+      "link": "https://leetcode.com/problems/3sum/description/",
+      "topic": "Arrays",
+      "difficulty": "Medium",
+      "coreConcept": "Taking 3 such values that they result in a target\n\nKinda straightforward, first of all sorting up the array cause it will have no such impact on answer but a surely will help in generating answer.\n\nCore-> Firstly remember of 2SUM, a+b+c=target-> therefore a+b=target-c.... for interview\n\nBut here we can see that we can maximize or minimize the sum to achieve the target, in such a way that we take two pointers at i and j=i+1 and the last at last k=n-1 ",
+      "approach": [
+        "min max and equality is the main thing to traverse through",
+        "Common things not to ignore are-> incrementing or continuing if we get same number again, cause it may give us duplicate values",
+        "Also j= i+1,  k=n-1 and while(j<k)"
+      ],
+      "pitfalls": [
+        "nouthing"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    vector<vector<int>> threeSum(vector<int>& nums) {\n        vector<vector<int>>ans;\n        sort(nums.begin(),nums.end());\n        int n=nums.size();\n        for(int i=0; i<n-2;i++){\n            if(i>0 && nums[i]==nums[i-1])continue;\n            int j=i+1;\n            int k=n-1;\n            while(j<k){\n                int sum = nums[i]+nums[j]+nums[k];\n\n                if(sum<0)j++;\n                else if(sum>0)k--;\n                else if(sum==0){\n                ans.push_back({nums[i],nums[j],nums[k]});\n                j++;\n                k--;\n                while(j<k && nums[j]==nums[j-1])j++;\n                while(j<k && nums[k]==nums[k+1])k--;\n                }\n            }\n        }\n        return ans;\n    }\n};",
+      "timeComplexity": "ime complexigt' The time complexity of your threeSum function can be analyzed as follows:  Sorting the array: This takes  𝑂 ( 𝑛 log ⁡ 𝑛 )  time, where  𝑛  is the number of elements in the array.  Main loop: The main loop runs  𝑛 − 2  times, which is approximately  𝑂 ( 𝑛 ) .  Two-pointer technique: Inside the main loop, the two-pointer technique runs in  𝑂 ( 𝑛 )  time in the worst case, as both pointers traverse the entire array.  Combining these, the overall time complexity of the threeSum function is  𝑂 ( 𝑛 log ⁡ 𝑛 + 𝑛 2 ) . Since  𝑂 ( 𝑛 2 )  dominates  𝑂 ( 𝑛 log ⁡ 𝑛 )  for large  𝑛 , the time complexity is typically expressed as  𝑂 ( 𝑛 2 ) .  So, the time complexity of your threeSum function is  𝑂 ( 𝑛 2 ) . ",
+      "spaceComplexity": "O(n^2)",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738675758940",
+      "dateAdded": "2025-02-04T13:29:18.940Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "4SUM",
+      "link": "https://leetcode.com/problems/4sum/description/",
+      "topic": "Arrays",
+      "difficulty": "Medium",
+      "coreConcept": "Refer to 3SUM cause here just one extra pointer at start will increase.",
+      "approach": [
+        "same as 3SUM"
+      ],
+      "pitfalls": [
+        "nothing"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    vector<vector<int>> fourSum(vector<int>& nums, int target) {\n        vector<vector<int>>ans;\n        sort(nums.begin(),nums.end());\n        int n= nums.size();\n        for(int i=0; i<n;  i++){\n            if(i>0 && nums[i]== nums[i-1])continue;\n            for(int j=i+1; j<n; j++){\n                if(j>i+1 && nums[j]== nums[j-1])continue;\n                int k= j+1;\n                int l=n-1;\n                while(k<l){\n                    long long sum= (long long)nums[i]+ nums[j]+ nums[k]+ nums[l];// do remember cause values can be lot big \n                    if(sum==target){\n                        ans.push_back({nums[i],nums[j],nums[k],nums[l]});\n                        k++;\n                        l--;\n                        while(k<l && nums[k]== nums[k-1])k++;\n                        while(k<l && nums[l]== nums[l+1])l--;\n\n                    }\n                    else if(sum>target){\n                        l--;\n                    }\n                    else if(sum<target){\n                        k++;\n                    }\n                }   \n            }\n        }\n        return ans;\n    }\n};",
+      "timeComplexity": "Detailed Breakdown Sorting:  𝑂 ( 𝑛 log ⁡ 𝑛 )  First loop:  𝑂 ( 𝑛 )  Second loop:  𝑂 ( 𝑛 )  Two-pointer:  𝑂 ( 𝑛 )  Overall, the time complexity is:  𝑂 ( 𝑛 log ⁡ 𝑛 ) + 𝑂 ( 𝑛 3 ) Since  𝑂 ( 𝑛 3 )  dominates  𝑂 ( 𝑛 log ⁡ 𝑛 ) , the overall time complexity is:",
+      "spaceComplexity": "𝑂 ( 𝑛 ^ 2 )",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738684711975",
+      "dateAdded": "2025-02-04T15:58:31.975Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Merge Intervals",
+      "link": "https://leetcode.com/problems/merge-intervals/",
+      "topic": "Arrays",
+      "difficulty": "Medium",
+      "coreConcept": "Core concept is to check the back of the array in which things are getting pushed, if the back's second is less than the new coming one including the first of new coming is less than back's second then push the new coming's second. Else store the max.",
+      "approach": [
+        "Things to remember, try not to make it very complex",
+        "Second, please use things "
+      ],
+      "pitfalls": [
+        "NA"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    vector<vector<int>> merge(vector<vector<int>>& arr) {\n        int n=arr.size();\n        sort(arr.begin(),arr.end());\n         vector<vector<int>>ans;\n         for(int i=0; i<n; i++){\n             if(ans.empty()|| arr[i][0]>ans.back()[1]){\n                 ans.push_back(arr[i]);\n             }\n             else{\n                 ans.back()[1]=max(ans.back()[1],arr[i][1]);\n             }\n         }\n         return ans;\n    }\n};",
+      "timeComplexity": "nlogn due to sorting",
+      "spaceComplexity": "O(n)",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738687924968",
+      "dateAdded": "2025-02-04T16:52:04.968Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": "2025-02-04T16:52:18.661Z",
+      "title": "Reverse Words in a String",
+      "link": "https://leetcode.com/problems/reverse-words-in-a-string/description/",
+      "topic": "Strings",
+      "difficulty": "Medium",
+      "coreConcept": "First u can use stringstream s >> token , that way u can do by taking the tokens and storing them\nwhile(ss>>token)result=token+\" \"+result;\n\nOr reversing the whole string and then taking l and r and whenever i finds a space reverse from l to r and continue the same, by putting a space after each reverse.",
+      "approach": [
+        "Again the same , try to think what the question is saying to do."
+      ],
+      "pitfalls": [
+        "N"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    string reverseWords(string s) {\n    reverse(s.begin(),s.end());\n    int l=0;\n    int r=0;\n    int i=0;\n    int n=s.length();\n    while(i<n){\n        while(s[i]!=' ' && i<n){\n            s[r++]=s[i++];\n        }\n        if(l<r){\n            reverse(s.begin()+l,s.begin()+r);\n        s[r]=' ';\n        r++;\n        l=r;    \n        }\n    i++;\n    } \n    s= s.substr(0,r-1);\n    return s;\n}\n};",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n) also if not vector or stringstream used then O(1)",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738689171332",
+      "dateAdded": "2025-02-04T17:12:51.332Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Longest common prefix",
+      "link": "https://leetcode.com/problems/longest-common-prefix/description/",
+      "topic": "Strings",
+      "difficulty": "Easy",
+      "coreConcept": "Simple just reverse the array and check how much do first and last values corelate",
+      "approach": [
+        "Just don't overcomplicate "
+      ],
+      "pitfalls": [
+        "N"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    string longestCommonPrefix(vector<string>& strs) {\n        \n    if (strs.empty()) return \"\";\n\n    // Sort the array\n    std::sort(strs.begin(), strs.end());\n\n    // Take the first and last strings after sorting\n    std::string first = strs.front();\n    std::string last = strs.back();\n    int i = 0;\n\n    // Compare characters of the first and last strings\n    while (i < first.size() && i < last.size() && first[i] == last[i]) {\n        i++;\n    }\n\n    // The common prefix is the substring from the start to the point of divergence\n    return first.substr(0,i);\n    }\n};",
+      "timeComplexity": "O(nlogn)",
+      "spaceComplexity": "O(1) ",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738690083129",
+      "dateAdded": "2025-02-04T17:28:03.129Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Roman to Integer",
+      "link": "https://leetcode.com/problems/roman-to-integer/description/",
+      "topic": "Strings",
+      "difficulty": "Easy",
+      "coreConcept": "\n\nIV = 4 (instead of IIII)\nIX = 9 (instead of VIIII)",
+      "approach": [
+        "Simple just be careful about the decrementation "
+      ],
+      "pitfalls": [
+        "n"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n int romanToInt(string s) {\n     unordered_map<char, int> m;  \n        m['I'] = 1;\n        m['V'] = 5;\n        m['X'] = 10;\n        m['L'] = 50;\n        m['C'] = 100;\n        m['D'] = 500;\n        m['M'] = 1000;\n        int ans= 0;\n       for(int i = 0; i < s.length(); i++){\n            if(m[s[i]] < m[s[i+1]]){\n                ans -= m[s[i]];// refer core concept\n            }\n            else{\n                ans += m[s[i]];\n            }\n        }\n        return ans;\n        \n    }\n\n};\n",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1738691166771",
+      "dateAdded": "2025-02-04T17:46:06.771Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Longest Palindromic Substring",
+      "link": "https://leetcode.com/problems/longest-palindromic-substring/description/",
+      "topic": "Strings",
+      "difficulty": "Medium",
+      "coreConcept": " maxlen=j-i+1; // takin length of substring\nsp=i; // startpoint i=0,1,2,3...\n\nRecursion for palindrome check to use as memo\nAlso in tabulation t[i][j] means state means from i to j is a palindrome, L=2 because Length=1 always a palindrome\n",
+      "approach": [
+        "Refer above"
+      ],
+      "pitfalls": [
+        "n"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n\n    // int t[1001][1001];\n\n    // bool ispal(int start, int e, string&s){\n    //     if(start>=e){\n    //         return true;\n    //     }\n    //     if(t[start][e]!=-1){\n    //         return t[start][e];\n    //     }\n    //     if(s[start]==s[e]){\n    //         return t[start][e]=ispal(start+1,e-1,s);\n    //     }\n        \n    //     return t[start][e]=0;\n    // }\n\n    // string longestPalindrome(string s) {\n        \n    //     memset(t,-1,sizeof(t));\n    //     int sp=0;\n    //     int maxlen=0;\n\n    //     for(int i=0; i<s.length(); i++){\n    //         for(int j=i; j<s.length(); j++){\n    //             if(ispal(i,j,s)){\n    //                 if(j-i+1>maxlen){\n    //                     maxlen=j-i+1; // takin length of substring\n    //                     sp=i; // startpoint i=0,1,2,3...\n    //                 }\n    //             }\n    //         }\n    //     }\n    //     return s.substr(sp,maxlen);\n\n    // }\n\n    string longestPalindrome(string s) {\n        int n= s.length();\n        vector<vector<bool>>t(n,vector<bool>(n,false));\n\n        int maxlen=0;\n        int sp=0;\n        for(int i=0; i<n; i++){\n            t[i][i]=true;\n            maxlen=1;\n        }\n\n        for(int L=2; L<=n; L++){\n\n            for(int i=0; i+L-1<n ; i++){\n                int j= L+i-1;\n\n                if(s[i]==s[j] && L==2){\n                    t[i][j]=true;\n                    maxlen=2;\n                    sp=i;\n                }\n                else if(t[i+1][j-1] && s[i]==s[j]){\n                    t[i][j]= true;\n                    if(maxlen<j-i+1){\n                        maxlen=j-i+1;\n                        sp=i;\n                    }\n                }\n\n            }\n            \n        }\n        return s.substr(sp,maxlen);\n    }\n\n};",
+      "timeComplexity": "vector<vector<bool>> t(n, vector<bool>(n, false)); This takes O(n²) space and O(n²) time to initialize.",
+      "spaceComplexity": "Same  O(n²) ",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1739097470285",
+      "dateAdded": "2025-02-09T10:37:50.285Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": "Count Nice Pairs in an Array",
+      "link": "https://leetcode.com/problems/count-nice-pairs-in-an-array/description/?envType=daily-question&envId=2023-11-21",
+      "topic": "Arrays",
+      "difficulty": "Medium",
+      "coreConcept": "//It means-> nums[i]-i!=nums[j]-j\n\n//Then the comination formula-> n*(n-1)/2",
+      "approach": [
+        "Alway rearrange in these types of problems.... And for counting use  hash maps"
+      ],
+      "pitfalls": [
+        "N"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    int MOD=1e9+7;\n\n    int countNicePairs(vector<int>& nums) {\n        unordered_map<int,int>mp;\n\n        for(int i=0; i<nums.size();i++){\n            string rev= to_string(nums[i]);\n            reverse(rev.begin(),rev.end());\n            int irev= stoi(rev);\n            mp[nums[i]-irev]++;\n        }\n\n        int good=0;\n        for(auto it: mp){\n            long long a=it.second;\n            long long s=((a*(a-1))/2)%MOD;\n            good= (good+s)%MOD;\n        }\n        return good;\n    }\n};",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "o(n) map space",
+      "tags": [],
+      "commonPitfalls": []
+    },
+    {
+      "id": "1739097602256",
+      "dateAdded": "2025-02-09T10:40:02.256Z",
+      "status": "Not Started",
+      "confidence": 1,
+      "lastPracticed": null,
+      "title": " Count Number of Bad Pairs",
+      "link": "https://leetcode.com/problems/count-number-of-bad-pairs/description/?envType=daily-question&envId=2025-02-09",
+      "topic": "Arrays",
+      "difficulty": "Medium",
+      "coreConcept": "Same as good pairs, just the thing is here if we have to find the bad... Just dont try to do it in map.. Mtlb map me frequency daalne ke baad mat koshish krna calculate krne ki O(n^2) hi soch paaoge, rather use the dimag and... Total-Good=BAD",
+      "approach": [
+        "same as Good pairs"
+      ],
+      "pitfalls": [
+        "na"
+      ],
+      "codeTemplate": "class Solution {\npublic:\n    long long countBadPairs(vector<int>& nums) {\n        \n        //It means-> nums[i]-i!=nums[j]-j\n\n        //But if u count bad, u will have to use O(n^2) anyhow!\n\n        //So first count the good and then from total...-good=bad\n\n        long long countGood=0;\n\n        unordered_map<int,int>mp;\n\n        for(int i=0; i<nums.size();i++){\n            mp[nums[i]-i]++;\n        }\n\n        for(auto it: mp){\n            long long s=it.second;\n            countGood+=(long long)s*(s-1)/2;\n        }\n\n        long long total_comb= (long long)nums.size()*(nums.size()-1)/2;\n        \n        return total_comb-countGood;\n    }\n};",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "o(n) map space",
+      "tags": [],
+      "commonPitfalls": []
+    }
+  ],
+  "topics": {
+    "Sorting Techniques": {
+      "name": "Sorting Techniques",
+      "description": "Basic and advanced sorting algorithms",
+      "subTopics": [
+        "Basic Sorting",
+        "Quick Sort",
+        "Merge Sort",
+        "Counting Sort"
+      ],
+      "patterns": [
+        "In-place",
+        "Divide & Conquer",
+        "Comparison based",
+        "Non-comparison based"
+      ]
+    },
+    "Arrays": {
+      "name": "Arrays",
+      "description": "Array manipulation and algorithms",
+      "subTopics": [
+        "Basic Operations",
+        "Two Pointers",
+        "Sliding Window",
+        "Kadane's Algorithm"
+      ],
+      "patterns": [
+        "In-place modification",
+        "Two Pointers",
+        "Prefix Sum",
+        "Sliding Window"
+      ]
+    },
+    "Binary Search": {
+      "name": "Binary Search",
+      "description": "Search algorithm for sorted arrays",
+      "subTopics": [
+        "1D Arrays",
+        "2D Arrays",
+        "Search Space",
+        "Modified Binary Search"
+      ],
+      "patterns": [
+        "Basic Binary Search",
+        "Rotated Array",
+        "Search Space Reduction"
+      ]
+    },
+    "Strings": {
+      "name": "Strings",
+      "description": "String manipulation and algorithms",
+      "subTopics": [
+        "Basic Operations",
+        "Pattern Matching",
+        "Dynamic Programming"
+      ],
+      "patterns": [
+        "Two Pointers",
+        "Sliding Window",
+        "DP"
+      ]
+    },
+    "Linked List": {
+      "name": "Linked List",
+      "description": "Linked list operations and algorithms",
+      "subTopics": [
+        "Single Linked List",
+        "Double Linked List",
+        "Circular Linked List"
+      ],
+      "patterns": [
+        "Two Pointers",
+        "Fast/Slow Pointer",
+        "Reversal"
+      ]
+    },
+    "Recursion": {
+      "name": "Recursion",
+      "description": "Recursive problem-solving patterns",
+      "subTopics": [
+        "Backtracking",
+        "Divide & Conquer",
+        "Memoization"
+      ],
+      "patterns": [
+        "Tree Recursion",
+        "Backtracking",
+        "Memory Function"
+      ]
+    },
+    "Bit Manipulation": {
+      "name": "Bit Manipulation",
+      "description": "Bit-level operations and algorithms",
+      "subTopics": [
+        "Basic Operations",
+        "Bit Counting",
+        "Bit Tricks"
+      ],
+      "patterns": [
+        "AND/OR/XOR",
+        "Bit Shifting",
+        "Power of Two"
+      ]
+    },
+    "Stack & Queue": {
+      "name": "Stack & Queue",
+      "description": "Stack and Queue based problems",
+      "subTopics": [
+        "Basic Operations",
+        "Monotonic Stack",
+        "Priority Queue"
+      ],
+      "patterns": [
+        "LIFO/FIFO",
+        "Monotonic Stack",
+        "Two Stacks"
+      ]
+    },
+    "Heaps": {
+      "name": "Heaps",
+      "description": "Heap/Priority Queue based problems",
+      "subTopics": [
+        "Min Heap",
+        "Max Heap",
+        "Custom Heap"
+      ],
+      "patterns": [
+        "K-th Element",
+        "Merge K Items",
+        "Running Median"
+      ]
+    }
+  },
+  "practiceLogs": [
+    {
+      "id": "1738687938661",
+      "questionId": "1738687924968",
+      "timeTaken": 2,
+      "solvedWithoutHelp": false,
+      "notes": "",
+      "date": "2025-02-04T16:52:18.661Z"
+    }
+  ]
+}
