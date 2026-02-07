@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CheckSquare, ClipboardPlus, ExternalLink, RefreshCcw } from 'lucide-react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { CalendarClock, CheckSquare, ClipboardPlus, Code2, ExternalLink, RefreshCcw, ChevronDown } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { apiGet, apiPatch, apiPost } from '../lib/api.js';
 
@@ -104,41 +104,58 @@ function sortMonthItems(items) {
   return copy;
 }
 
-function BucketHeader({ title, subtitle }) {
+function BucketHeader({ title, subtitle, icon: Icon }) {
   return (
-    <div className="mb-3">
-      <div className="flex items-center gap-2">
-        <CalendarClock className="h-5 w-5 text-slate-300" />
-        <h2 className="text-lg font-semibold text-slate-100">{title}</h2>
+    <div className="mb-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+          <Icon className="h-6 w-6" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-amber-500 mb-0.5">{title}</h2>
+          {subtitle ? <p className="text-sm text-slate-400">{subtitle}</p> : null}
+        </div>
       </div>
-      {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
     </div>
   );
 }
 
 function Tabs({ value, onChange, items }) {
   return (
-    <div className="mt-6 inline-flex w-full flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-900/40 p-2">
+    <div className="mt-8 flex flex-wrap gap-3">
       {items.map((t) => (
         <button
           key={t.value}
           type="button"
           onClick={() => onChange(t.value)}
-          className={
+          className={`flex items-center gap-3 rounded-full px-6 py-3 text-sm font-bold transition-all duration-300 ${
             value === t.value
-              ? 'rounded-xl bg-indigo-500/20 px-3 py-2 text-sm font-semibold text-indigo-100 ring-1 ring-indigo-500/30'
-              : 'rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 ring-1 ring-white/10 hover:bg-white/10'
-          }
+              ? 'bg-amber-500 text-black shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] scale-105'
+              : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+          }`}
         >
           {t.label}
-          <span className="ml-2 rounded-full bg-black/30 px-2 py-0.5 text-xs text-slate-200 ring-1 ring-white/10">{t.count}</span>
+          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black ${
+            value === t.value ? 'bg-black/20 text-black' : 'bg-white/10 text-slate-500'
+          }`}>
+            {t.count}
+          </span>
         </button>
       ))}
     </div>
   );
 }
 
-function ItemRow({ item, onMove, onCompleteWeek, onCompleteToday, onCompleteMonth }) {
+function ItemRow({ 
+  item, 
+  onMove, 
+  onCompleteWeek, 
+  onCompleteToday, 
+  onCompleteMonth,
+  showMoveToMonth,
+  isMoveToMonthChecked,
+  onToggleMoveToMonth
+}) {
   const title = item.title || item.ref;
   const link = item.link || (item.source === 'leetcode' ? `https://leetcode.com/problems/${item.ref}/` : '');
   const now = new Date();
@@ -173,126 +190,135 @@ function ItemRow({ item, onMove, onCompleteWeek, onCompleteToday, onCompleteMont
   const showLeetCodeLastAccepted = String(item?.source || '').toLowerCase() === 'leetcode' && item.leetcodeLastAcceptedAt;
 
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/40 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="truncate text-sm font-semibold text-slate-100">{title}</div>
-            {item.difficulty ? (
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ring-1 ${difficultyBadge(item.difficulty)}`}>
-                {item.difficulty}
-              </span>
-            ) : null}
-            <span className="text-xs text-slate-500">{item.source}:{item.ref}</span>
+    <div className="group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/5 bg-[#1C1C2E]/40 p-7 transition-all duration-500 hover:bg-[#1C1C2E] hover:border-amber-500/50 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)]">
+      {/* Glass Reflection Effect */}
+      <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg]"></div>
+      
+      {/* Premium Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+      
+      <div className="relative z-10 flex flex-col h-full">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <h3 className="truncate text-lg font-bold text-white/90 transition-colors group-hover:text-amber-500">
+                {title}
+              </h3>
+              {item.difficulty ? (
+                <span className={`shrink-0 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                  item.difficulty === 'Easy' ? 'bg-emerald-500/20 text-emerald-400' :
+                  item.difficulty === 'Medium' ? 'bg-amber-500/20 text-amber-400' :
+                  'bg-rose-500/20 text-rose-400'
+                }`}>
+                  {item.difficulty}
+                </span>
+              ) : null}
+            </div>
+            
+            <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                {item.source}:{item.ref}
+              </div>
+              <div className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-800"></span>
+                {item.bucket === 'month' ? 'Next' : 'Due'}: {formatDate(item.bucketDueAt)}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 opacity-60 transition-opacity group-hover:opacity-100">
+              {item.lastCompletedAt ? (
+                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                  <CheckSquare className="h-3 w-3" />
+                  Done: {formatDate(item.lastCompletedAt)}
+                </div>
+              ) : null}
+              {showLeetCodeLastAccepted ? (
+                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                  <RefreshCcw className="h-3 w-3" />
+                  Last submitted: {formatDateTime(item.leetcodeLastAcceptedAt)}
+                </div>
+              ) : null}
+            </div>
           </div>
-          <div className="mt-1 text-xs text-slate-400">
-            {item.bucket === 'month' ? 'Next revision on' : 'Due'}:{' '}
-            <span className="text-slate-200">{formatDate(item.bucketDueAt)}</span>
-            {item.lastCompletedAt ? (
-              <>
-                <span className="mx-2 text-slate-500">|</span>
-                Done: <span className="text-slate-200">{formatDate(item.lastCompletedAt)}</span>
-              </>
-            ) : null}
-            {showLeetCodeLastAccepted ? (
-              <>
-                <span className="mx-2 text-slate-500">|</span>
-                Last submitted at: <span className="text-slate-200">{formatDateTime(item.leetcodeLastAcceptedAt)}</span>
-              </>
-            ) : null}
-          </div>
+
+          {link ? (
+            <a
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition-all hover:bg-amber-500 hover:text-black hover:border-amber-500 hover:shadow-[0_0_15px_rgba(245,158,11,0.4)]"
+              href={link}
+              target="_blank"
+              rel="noreferrer"
+              title="Open Problem"
+            >
+              <ExternalLink className="h-5 w-5" />
+            </a>
+          ) : null}
         </div>
 
-        {link ? (
-          <a
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
-            href={link}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            Open
-          </a>
-        ) : null}
-      </div>
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {canMoveToToday ? (
+              <button
+                type="button"
+                className="rounded-full bg-white/5 px-4 py-1.5 text-[11px] font-bold text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/5"
+                onClick={() => onMove(item._id, 'today')}
+              >
+                Move Today
+              </button>
+            ) : null}
+            {canMoveToWeek ? (
+              <button
+                type="button"
+                className="rounded-full bg-white/5 px-4 py-1.5 text-[11px] font-bold text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/5"
+                onClick={() => onMove(item._id, 'week')}
+              >
+                Move Week
+              </button>
+            ) : null}
+            {canMoveToMonth ? (
+              <button
+                type="button"
+                className="rounded-full bg-white/5 px-4 py-1.5 text-[11px] font-bold text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/5"
+                onClick={() => onMove(item._id, 'month')}
+              >
+                Move Month
+              </button>
+            ) : null}
+          </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {canMoveToToday ? (
-          <button
-            type="button"
-            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
-            onClick={() => onMove(item._id, 'today')}
-          >
-            Today
-          </button>
-        ) : null}
-        {canMoveToWeek ? (
-          <button
-            type="button"
-            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
-            onClick={() => onMove(item._id, 'week')}
-          >
-            Week
-          </button>
-        ) : null}
-        {canMoveToMonth ? (
-          <button
-            type="button"
-            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200 hover:bg-white/10"
-            onClick={() => onMove(item._id, 'month')}
-          >
-            Month
-          </button>
-        ) : null}
-
-        {item.bucket === 'week' ? (
-          <button
-            type="button"
-            disabled={weekDone}
-            className={
-              'ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ring-1 ' +
-              (weekDone
-                ? 'cursor-not-allowed bg-emerald-500/30 text-emerald-100 ring-emerald-500/40'
-                : 'bg-rose-500/20 text-rose-200 ring-rose-500/30 hover:bg-rose-500/25')
-            }
-            onClick={() => (weekDone ? null : onCompleteWeek(item))}
-            title="Mark weekly revision done"
-          >
-            Done
-          </button>
-        ) : null}
-
-        {item.bucket === 'today' ? (
-          <button
-            type="button"
-            disabled={todayDone}
-            className={
-              'ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ring-1 ' +
-              (todayDone
-                ? 'cursor-not-allowed bg-emerald-500/30 text-emerald-100 ring-emerald-500/40'
-                : 'bg-rose-500/20 text-rose-200 ring-rose-500/30 hover:bg-rose-500/25')
-            }
-            onClick={() => (todayDone ? null : onCompleteToday(item))}
-          >
-            Done
-          </button>
-        ) : null}
-
-        {item.bucket === 'month' ? (
-          <button
-            type="button"
-            disabled={monthDone}
-            className={
-              'ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ring-1 ' +
-              (monthDone
-                ? 'cursor-not-allowed bg-emerald-500/30 text-emerald-100 ring-emerald-500/40'
-                : 'bg-rose-500/20 text-rose-200 ring-rose-500/30 hover:bg-rose-500/25')
-            }
-            onClick={() => (monthDone ? null : onCompleteMonth(item))}
-          >
-            Done
-          </button>
-        ) : null}
+          {(item.bucket === 'week' || item.bucket === 'today' || item.bucket === 'month') ? (
+            <div className="flex flex-wrap items-center gap-4">
+              {showMoveToMonth && (
+                <label className="flex items-center gap-2 rounded-xl bg-amber-500/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-amber-500 border border-amber-500/10 transition-all hover:bg-amber-500/20 hover:border-amber-500/30 cursor-pointer shadow-lg shadow-amber-500/5 group/toggle">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded border-amber-500/20 bg-black/20 text-amber-500 focus:ring-amber-500/30 transition-all cursor-pointer"
+                    checked={Boolean(isMoveToMonthChecked)}
+                    onChange={(e) => onToggleMoveToMonth(e.target.checked)}
+                  />
+                  Move to Month
+                </label>
+              )}
+              <button
+                type="button"
+                disabled={(item.bucket === 'week' && weekDone) || (item.bucket === 'today' && todayDone) || (item.bucket === 'month' && monthDone)}
+                className={`inline-flex items-center gap-2 rounded-full px-6 py-2 text-xs font-bold transition-all ${
+                  (item.bucket === 'week' && weekDone) || (item.bucket === 'today' && todayDone) || (item.bucket === 'month' && monthDone)
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 opacity-60'
+                    : 'bg-amber-500/10 text-amber-500 border border-amber-500/30 hover:bg-amber-500 hover:text-black active:scale-95 shadow-lg shadow-amber-500/20'
+                }`}
+                onClick={() => {
+                  if (item.bucket === 'week' && !weekDone) onCompleteWeek(item);
+                  if (item.bucket === 'today' && !todayDone) onCompleteToday(item);
+                  if (item.bucket === 'month' && !monthDone) onCompleteMonth(item);
+                }}
+              >
+                <CheckSquare className="h-4 w-4" />
+                {(item.bucket === 'week' && weekDone) || (item.bucket === 'today' && todayDone) || (item.bucket === 'month' && monthDone) ? 'Completed' : 'Complete'}
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -323,6 +349,9 @@ export default function RevisionBucketsDashboard() {
   const [confirmDone, setConfirmDone] = useState(null); // { scope: 'week'|'today'|'month', item }
   const [confirmDoneSubmitting, setConfirmDoneSubmitting] = useState(false);
 
+  const [isWhenDropdownOpen, setIsWhenDropdownOpen] = useState(false);
+  const whenDropdownRef = useRef(null);
+
   const total = useMemo(() => today.length + week.length + month.length, [today.length, week.length, month.length]);
 
   async function loadSummary() {
@@ -332,6 +361,16 @@ export default function RevisionBucketsDashboard() {
     setWeek(json.week || []);
     setMonth(sortMonthItems(json.month || []));
   }
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (whenDropdownRef.current && !whenDropdownRef.current.contains(event.target)) {
+        setIsWhenDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -502,42 +541,37 @@ export default function RevisionBucketsDashboard() {
     }
   }
 
-  if (!isLoggedIn) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-10">
-        <h1 className="text-2xl font-bold text-slate-100">Revision</h1>
-        <p className="mt-2 text-slate-400">Login to use your personal revision buckets.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
+    <div className="flex flex-col min-h-screen">
+      <div className="mx-auto max-w-7xl px-4 py-12 flex-1">
       {confirmDone ? (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur"
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xl"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !confirmDoneSubmitting) setConfirmDone(null);
           }}
         >
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
-            <div className="text-base font-semibold text-slate-100">Mark done?</div>
-            <div className="mt-1 text-sm text-slate-300">
-              {confirmDone?.item?.title || confirmDone?.item?.ref || 'This question'}
+          <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0d0e14] p-8 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.8)]">
+            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
+              <CheckSquare className="h-7 w-7" />
             </div>
+            <h3 className="text-2xl font-bold text-white">Mark as completed?</h3>
+            <p className="mt-2 text-slate-400">
+              {confirmDone?.item?.title || confirmDone?.item?.ref || 'This question'}
+            </p>
 
             {confirmDone?.scope === 'week' ? (
-              <div className="mt-3 text-xs text-slate-400">
-                Weekly done: Medium/Hard moves to Month automatically. Easy uses the checkbox next to the item.
+              <div className="mt-4 rounded-xl bg-orange-500/10 p-3 text-xs text-orange-300 border border-orange-500/20">
+                Weekly revision: Medium/Hard questions will move to Month automatically.
               </div>
             ) : null}
 
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-8 flex gap-3">
               <button
                 type="button"
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10 disabled:opacity-50"
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-4 text-sm font-bold text-slate-200 transition-all hover:bg-white/10 disabled:opacity-50"
                 disabled={confirmDoneSubmitting}
                 onClick={() => setConfirmDone(null)}
               >
@@ -545,226 +579,318 @@ export default function RevisionBucketsDashboard() {
               </button>
               <button
                 type="button"
-                className="rounded-lg bg-indigo-500/20 px-3 py-2 text-sm font-semibold text-indigo-100 ring-1 ring-indigo-500/30 hover:bg-indigo-500/25 disabled:opacity-50"
+                className="flex-1 rounded-2xl bg-amber-500 py-4 text-sm font-bold text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 disabled:opacity-50"
                 disabled={confirmDoneSubmitting}
                 onClick={submitConfirmDone}
               >
-                {confirmDoneSubmitting ? 'Marking…' : 'Mark done'}
+                {confirmDoneSubmitting ? 'Processing…' : 'Yes, Done'}
               </button>
             </div>
           </div>
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-10">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Revision Buckets</h1>
-          <p className="mt-1 text-sm text-slate-400">Today • Upcoming Sunday • Month (no repeated questions)</p>
+          <h1 className="text-4xl font-black tracking-tight text-amber-500 mb-2">Revision</h1>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10"
-            onClick={async () => {
-              setLoading(true);
-              try {
-                await loadSummary();
-              } finally {
-                setLoading(false);
-              }
-            }}
-          >
-            <RefreshCcw className="h-4 w-4" />
-            Refresh
-          </button>
-        </div>
+        <button
+          type="button"
+          className="group inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-amber-500 hover:border-amber-500 hover:text-black hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+          onClick={async () => {
+            setLoading(true);
+            try {
+              await loadSummary();
+            } finally {
+              setLoading(false);
+            }
+          }}
+        >
+          <RefreshCcw className="h-4 w-4 transition-transform group-hover:rotate-180 duration-500" />
+          Sync Progress
+        </button>
       </div>
 
-      <form onSubmit={handleAddFromLeetCode} className="mt-6 rounded-xl border border-white/10 bg-slate-900/40 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="relative flex-1">
-            <label className="block text-xs font-semibold text-slate-300">Add LeetCode slug</label>
-            <input
-              value={slug}
-              onChange={(e) => {
-                setSlug(e.target.value);
-                setShowSuggest(true);
-              }}
-              onFocus={() => setShowSuggest(true)}
-              onBlur={() => {
-                // Give click events a chance to fire.
-                setTimeout(() => setShowSuggest(false), 150);
-              }}
-              placeholder="e.g. two-sum or https://leetcode.com/problems/two-sum/"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-            />
-
-            {showSuggest ? (
-              <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-white/10 bg-slate-950/95 shadow-xl">
-                <div className="px-3 py-2 text-xs text-slate-400">
-                  {suggestLoading ? 'Loading suggestions…' : suggestError ? suggestError : 'Suggestions'}
-                </div>
-                <div className="max-h-64 overflow-auto">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s.slug}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setSlug(s.slug);
-                        setShowSuggest(false);
-                      }}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-100 hover:bg-white/5"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">
-                          {s.id ? `${s.id}. ` : ''}{s.title}
-                        </div>
-                        <div className="mt-0.5 truncate text-xs text-slate-400">{s.slug}</div>
-                      </div>
-                      {s.difficulty ? (
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ring-1 ${difficultyBadge(s.difficulty)}`}>
-                          {s.difficulty}
-                        </span>
-                      ) : null}
-                    </button>
-                  ))}
-                  {!suggestions.length && !suggestLoading && !suggestError ? (
-                    <div className="px-3 py-3 text-sm text-slate-400">No matches</div>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-300">Bucket</label>
-            <select
-              value={bucket}
-              onChange={(e) => setBucket(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-            >
-              <option value="today">Today</option>
-              <option value="week">Upcoming Sunday</option>
-              <option value="month">Month</option>
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-500/20 px-3 py-2 text-sm font-semibold text-indigo-200 ring-1 ring-indigo-500/30 hover:bg-indigo-500/25"
-          >
-            <ClipboardPlus className="h-4 w-4" />
-            Add
-          </button>
+      <div className="relative mb-12 rounded-[2.5rem] border border-white/5 bg-[#1C1C2E]/30 p-8 backdrop-blur-sm">
+        <div className="absolute top-0 right-0 p-8 opacity-5">
+            <ClipboardPlus className="h-24 w-24 text-white" />
         </div>
 
-        {message ? <div className="mt-3 text-sm text-emerald-300">{message}</div> : null}
-        {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
-      </form>
-
-      <div className="mt-4 text-sm text-slate-400">Total: {total}</div>
-
-      {loading ? <div className="mt-6 text-slate-300">Loading…</div> : null}
-
-      <Tabs
-        value={activeTab}
-        onChange={setActiveTab}
-        items={[
-          { value: 'today', label: 'Today', count: today.length },
-          { value: 'week', label: 'Upcoming Sunday', count: week.length },
-          { value: 'month', label: 'Month', count: month.length },
-        ]}
-      />
-
-      <div className="mt-6">
-        {activeTab === 'today' ? (
-          <>
-            <BucketHeader title="Today" subtitle="Must revise today items. Completing schedules for tomorrow." />
-            <div className="space-y-3">
-              {today.map((item) => (
-                <ItemRow
-                  key={item._id}
-                  item={item}
-                  onMove={moveItem}
-                  onCompleteWeek={completeWeek}
-                  onCompleteToday={completeToday}
-                  onCompleteMonth={completeMonth}
+        <form onSubmit={handleAddFromLeetCode} className="relative z-10 font-sans">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+            <div className="md:col-span-7 relative">
+              <label className="block text-xs font-black uppercase tracking-widest text-amber-500 mb-2 px-1 text-[10px]">LeetCode Problem</label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                    <Code2 className="h-5 w-5" />
+                </div>
+                <input
+                  value={slug}
+                  onChange={(e) => {
+                    setSlug(e.target.value);
+                    setShowSuggest(true);
+                  }}
+                  onFocus={() => setShowSuggest(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowSuggest(false), 200);
+                  }}
+                  placeholder="Paste URL or slug (e.g. two-sum)"
+                  className="w-full rounded-2xl border border-white/10 bg-[#05070a] py-4 pl-12 pr-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all font-bold"
                 />
-              ))}
-              {!today.length ? <div className="text-sm text-slate-500">No items</div> : null}
-            </div>
-          </>
-        ) : null}
+              </div>
 
-        {activeTab === 'week' ? (
-          <>
-            <BucketHeader title="Upcoming Sunday" subtitle="Weekly revision. Medium/Hard auto-move to Month when done." />
-            <div className="mb-3 rounded-xl border border-white/10 bg-slate-900/40 p-3 text-sm text-slate-300">
-              <div className="font-semibold text-slate-100">Easy checkbox</div>
-              <div className="mt-1 text-slate-400">For Easy questions, tick “Move to Month” before clicking Weekly done.</div>
+              {showSuggest && (suggestions.length > 0 || suggestLoading) && (
+                <div className="absolute z-[100] left-0 right-0 mt-3 overflow-hidden rounded-[2rem] border border-white/10 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
+                  {suggestLoading && (
+                      <div className="px-4 py-3 text-xs text-slate-400 border-b border-white/5 italic">Searching Problemset...</div>
+                  )}
+                  <div className="max-h-72 overflow-y-auto custom-scrollbar p-2">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s.slug}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSlug(s.slug);
+                          setShowSuggest(false);
+                        }}
+                        className="group flex w-full items-center justify-between gap-4 rounded-xl px-4 py-3 text-left transition-all hover:bg-amber-500/10"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-bold text-slate-200 group-hover:text-amber-500 transition-colors">
+                            {s.id ? `${s.id}. ` : ''}{s.title}
+                          </div>
+                          <div className="mt-0.5 truncate text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-400">{s.slug}</div>
+                        </div>
+                        {s.difficulty ? (
+                          <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                            s.difficulty === 'Easy' ? 'bg-emerald-500/20 text-emerald-400' :
+                            s.difficulty === 'Medium' ? 'bg-amber-500/20 text-amber-400' :
+                            'bg-rose-500/20 text-rose-400'
+                          }`}>
+                            {s.difficulty}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="space-y-3">
-              {week.map((item) => {
-                const isEasy = String(item.difficulty || '').toLowerCase() === 'easy' || !item.difficulty;
-                return (
-                  <div key={item._id} className="space-y-2">
-                    {isEasy ? (
-                      <label className="flex items-center gap-2 text-sm text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(easyMoveToMonthById[item._id])}
-                          onChange={(e) =>
-                            setEasyMoveToMonthById((prev) => ({ ...prev, [item._id]: e.target.checked }))
-                          }
-                        />
-                        Move to Month after Weekly done
-                      </label>
-                    ) : null}
+
+            <div className="md:col-span-3">
+              <label className="block text-xs font-black uppercase tracking-widest text-amber-500 mb-2 px-1 text-[10px]">Target When</label>
+              <div className="relative" ref={whenDropdownRef}>
+                <div 
+                  onClick={() => setIsWhenDropdownOpen(!isWhenDropdownOpen)}
+                  className={`bg-[#05070a] border border-white/10 px-5 py-4 text-sm cursor-pointer flex items-center justify-between gap-3 transition-all duration-200 ${isWhenDropdownOpen ? 'rounded-t-[1.5rem] rounded-b-none border-amber-500 ring-1 ring-amber-500/30' : 'rounded-2xl hover:border-white/20'}`}
+                >
+                  <span className="font-bold text-white italic capitalize">
+                    {bucket === 'today' ? 'Daily' : bucket === 'week' ? 'Weekly' : 'Monthly'}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isWhenDropdownOpen ? 'rotate-180 text-amber-500' : 'text-slate-500'}`} />
+                </div>
+
+                {isWhenDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 z-[100] mt-0 overflow-hidden rounded-b-[1.5rem] border border-t-0 border-amber-500 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
+                    {[
+                      { value: 'today', label: 'Daily' },
+                      { value: 'week', label: 'Weekly' },
+                      { value: 'month', label: 'Monthly' }
+                    ].map((opt) => (
+                      <div 
+                        key={opt.value}
+                        className={`px-5 py-3 text-sm font-bold cursor-pointer transition-colors hover:bg-amber-500/10 hover:text-white ${bucket === opt.value ? 'bg-amber-500/5 text-amber-500' : 'text-slate-400'}`}
+                        onClick={() => {
+                          setBucket(opt.value);
+                          setIsWhenDropdownOpen(false);
+                        }}
+                      >
+                        {opt.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 py-4 text-sm font-black uppercase tracking-widest text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <ClipboardPlus className="h-5 w-5" />
+                Add
+              </button>
+            </div>
+          </div>
+
+          {message ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs font-bold text-emerald-400 animate-in fade-in slide-in-from-top-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400"></div>
+                  {message}
+              </div>
+          ) : null}
+          {error ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-xs font-bold text-rose-400 animate-in fade-in slide-in-from-top-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-rose-400"></div>
+                  {error}
+              </div>
+          ) : null}
+        </form>
+      </div>
+
+      <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Active Queue Analysis</div>
+          <div className="text-xs font-bold text-slate-400 bg-white/5 py-1 px-3 rounded-full border border-white/10">Total Items: {total}</div>
+      </div>
+
+      {loading && (
+          <div className="flex flex-col items-center justify-center py-12 gap-4 opacity-60">
+              <RefreshCcw className="h-10 w-10 animate-spin text-amber-500" />
+              <p className="text-sm font-bold tracking-widest uppercase text-slate-500">Analyzing Buckets...</p>
+          </div>
+      )}
+
+      {!loading && (
+        <>
+          <Tabs
+            value={activeTab}
+            onChange={setActiveTab}
+            items={[
+              { value: 'today', label: 'Today', count: today.length },
+              { value: 'week', label: 'Upcoming Sunday', count: week.length },
+              { value: 'month', label: 'Month', count: month.length },
+            ]}
+          />
+
+          <div className="mt-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {activeTab === 'today' && (
+              <>
+                <BucketHeader 
+                    title="Daily Tasks" 
+                    subtitle="Critical items requiring immediate revision. Resets daily at 5:30 AM IST." 
+                    icon={CalendarClock}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {today.map((item) => (
                     <ItemRow
+                      key={item._id}
                       item={item}
                       onMove={moveItem}
                       onCompleteWeek={completeWeek}
                       onCompleteToday={completeToday}
                       onCompleteMonth={completeMonth}
                     />
-                  </div>
-                );
-              })}
-              {!week.length ? <div className="text-sm text-slate-500">No items</div> : null}
-            </div>
-          </>
-        ) : null}
+                  ))}
+                </div>
+                {!today.length ? (
+                    <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
+                        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">All questions revised for today! 🎉</p>
+                    </div>
+                ) : null}
+              </>
+            )}
 
-        {activeTab === 'month' ? (
-          <>
-            <BucketHeader title="Month" subtitle="Monthly revision. Completing schedules next month." />
-            <div className="space-y-3">
-              {month.map((item) => (
-                <ItemRow
-                  key={item._id}
-                  item={item}
-                  onMove={moveItem}
-                  onCompleteWeek={completeWeek}
-                  onCompleteToday={completeToday}
-                  onCompleteMonth={completeMonth}
+            {activeTab === 'week' && (
+              <>
+                <BucketHeader 
+                    title="Weekend Cycle" 
+                    subtitle="Upcoming Sunday revisions. Medium/Hard auto-elevate to Monthly bucket." 
+                    icon={RefreshCcw}
                 />
-              ))}
-              {!month.length ? <div className="text-sm text-slate-500">No items</div> : null}
-            </div>
-          </>
-        ) : null}
-      </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {week.map((item) => {
+                    const isEasy = String(item.difficulty || '').toLowerCase() === 'easy' || !item.difficulty;
+                    return (
+                      <ItemRow
+                        key={item._id}
+                        item={item}
+                        onMove={moveItem}
+                        onCompleteWeek={completeWeek}
+                        onCompleteToday={completeToday}
+                        onCompleteMonth={completeMonth}
+                        showMoveToMonth={isEasy}
+                        isMoveToMonthChecked={Boolean(easyMoveToMonthById[item._id])}
+                        onToggleMoveToMonth={(val) =>
+                          setEasyMoveToMonthById((prev) => ({ ...prev, [item._id]: val }))
+                        }
+                      />
+                    );
+                  })}
+                </div>
+                {!week.length ? (
+                    <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
+                        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No items queued for Sunday revision.</p>
+                    </div>
+                ) : null}
+              </>
+            )}
 
-      <div className="mt-8 rounded-xl border border-white/10 bg-slate-900/40 p-4 text-sm text-slate-300">
-        <div className="flex items-center gap-2 font-semibold text-slate-100">
-          <CheckSquare className="h-4 w-4" />
-          Rules
-        </div>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-400">
-          <li>No duplicates: the same question can only be added once per user.</li>
-          <li>Week done: Medium/Hard moves to Month automatically.</li>
-          <li>Week done: Easy asks whether to move to Month.</li>
-        </ul>
+            {activeTab === 'month' && (
+              <>
+                <BucketHeader 
+                    title="Deep Memory" 
+                    subtitle="Long-term retention cycle. Items show up once a month." 
+                    icon={CalendarClock}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {month.map((item) => (
+                    <ItemRow
+                      key={item._id}
+                      item={item}
+                      onMove={moveItem}
+                      onCompleteWeek={completeWeek}
+                      onCompleteToday={completeToday}
+                      onCompleteMonth={completeMonth}
+                    />
+                  ))}
+                </div>
+                {!month.length ? (
+                    <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
+                        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Monthly bucket is currently empty.</p>
+                    </div>
+                ) : null}
+              </>
+            )}
+          </div>
+
+          <div className="mt-16 rounded-[2rem] border border-white/5 bg-[#1C1C2E]/20 p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <CheckSquare className="h-5 w-5" />
+              </div>
+              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">System Protocols</h4>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="flex gap-4">
+                  <div className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-slate-400 border border-white/10">01</div>
+                  <div>
+                      <h5 className="text-xs font-bold text-slate-200 mb-1">Deduplication</h5>
+                      <p className="text-xs text-slate-500 leading-relaxed">System ensures unique entries per user profile to prevent revision clutter.</p>
+                  </div>
+              </div>
+              <div className="flex gap-4">
+                  <div className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-slate-400 border border-white/10">02</div>
+                  <div>
+                      <h5 className="text-xs font-bold text-slate-200 mb-1">Auto-Elevation</h5>
+                      <p className="text-xs text-slate-500 leading-relaxed">Medium and Hard problems automatically advance to the Deep Memory bucket upon weekly completion.</p>
+                  </div>
+              </div>
+              <div className="flex gap-4">
+                  <div className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-slate-400 border border-white/10">03</div>
+                  <div>
+                      <h5 className="text-xs font-bold text-slate-200 mb-1">Manual Upgrade</h5>
+                      <p className="text-xs text-slate-500 leading-relaxed">Easy questions can be manually promoted to the Monthly cycle via the post-completion protocol.</p>
+                  </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
       </div>
     </div>
   );

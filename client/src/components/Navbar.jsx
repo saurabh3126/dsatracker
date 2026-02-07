@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Code2, Smile } from 'lucide-react';
+import { Bell, Code2, Smile, ChevronDown, CheckCircle2, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getNextContestIST, isContestTomorrowIST } from '../utils/contestSchedule.js';
 
@@ -45,6 +45,23 @@ function istDateKey(date = new Date()) {
   return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
+function formatIstDateTime(ms) {
+  const d = new Date(ms);
+  if (!Number.isFinite(d.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d);
+  } catch {
+    return d.toLocaleString();
+  }
+}
+
 function istWallTimeToUtcMs({ year, month, day, hour, minute = 0, second = 0 }) {
   // IST = UTC+05:30 (no DST)
   const offsetMs = 330 * 60 * 1000;
@@ -83,7 +100,7 @@ function formatContestCountdown(msRemaining) {
 }
 
 const navLinkBase =
-  'rounded-lg px-3 py-2 text-sm font-medium text-slate-200/90 hover:text-white hover:bg-white/5 transition';
+  'rounded-full px-5 py-2.5 text-sm font-medium text-amber-500 hover:text-amber-400 hover:bg-amber-500/5 transition';
 
 function potdMeta(potdSolved) {
   if (potdSolved === false) {
@@ -117,7 +134,7 @@ function NavItem({ to, children }) {
       className={({ isActive }) =>
         [
           navLinkBase,
-          isActive ? 'bg-white/10 text-white ring-1 ring-white/10' : '',
+          isActive ? 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : '',
         ].join(' ')
       }
       end
@@ -156,129 +173,192 @@ function UserMenu({ name, variant = 'desktop' }) {
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        className={navLinkBase + ' inline-flex items-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10'}
+        className={`${navLinkBase} inline-flex items-center gap-2.5 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ${open ? 'bg-white/10 ring-amber-500/30' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <span>Hi {name || 'User'}</span>
-        <span className={'text-xs opacity-80 transition ' + (open ? 'rotate-180' : '')}>▾</span>
+        <span className="font-bold tracking-tight text-slate-200">Hi {name || 'User'}</span>
+        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180 text-amber-500' : ''}`} />
       </button>
 
       {open ? (
         <div
           role="menu"
           className={
-            'absolute right-0 mt-2 overflow-hidden rounded-xl border border-white/10 bg-[#0b0f1a]/95 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur ' +
-            (variant === 'mobile' ? 'w-[min(18rem,calc(100vw-2rem))]' : 'w-44')
+            'absolute right-0 mt-3 overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl z-[600] animate-in fade-in slide-in-from-top-2 duration-200 ' +
+            (variant === 'mobile' ? 'w-[min(18rem,calc(100vw-2rem))]' : 'w-48')
           }
         >
           {variant === 'mobile' ? (
-            <>
-              <NavLink
-                to="/"
-                role="menuitem"
-                className={({ isActive }) =>
-                  [
-                    'block px-4 py-3 text-sm',
-                    isActive ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/5',
-                  ].join(' ')
-                }
-                onClick={() => setOpen(false)}
-                end
-              >
-                Home
-              </NavLink>
-              <NavLink
-                to="/questions"
-                role="menuitem"
-                className={({ isActive }) =>
-                  [
-                    'block px-4 py-3 text-sm',
-                    isActive ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/5',
-                  ].join(' ')
-                }
-                onClick={() => setOpen(false)}
-                end
-              >
-                Questions
-              </NavLink>
-              <NavLink
-                to="/revision"
-                role="menuitem"
-                className={({ isActive }) =>
-                  [
-                    'block px-4 py-3 text-sm',
-                    isActive ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/5',
-                  ].join(' ')
-                }
-                onClick={() => setOpen(false)}
-              >
-                Revision
-              </NavLink>
-              <NavLink
-                to="/today"
-                role="menuitem"
-                className={({ isActive }) =>
-                  [
-                    'block px-4 py-3 text-sm',
-                    isActive ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/5',
-                  ].join(' ')
-                }
-                onClick={() => setOpen(false)}
-              >
-                Today's Task
-              </NavLink>
-              <NavLink
-                to="/solved"
-                role="menuitem"
-                className={({ isActive }) =>
-                  [
-                    'block px-4 py-3 text-sm',
-                    isActive ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/5',
-                  ].join(' ')
-                }
-                onClick={() => setOpen(false)}
-              >
-                Solved
-              </NavLink>
-              <NavLink
-                to="/topics"
-                role="menuitem"
-                className={({ isActive }) =>
-                  [
-                    'block px-4 py-3 text-sm',
-                    isActive ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/5',
-                  ].join(' ')
-                }
-                onClick={() => setOpen(false)}
-              >
-                Topics
-              </NavLink>
-              <div className="h-px bg-white/10" />
-            </>
+            <div className="flex flex-col">
+              {[
+                { to: '/', label: 'Home' },
+                { to: '/questions', label: 'Questions' },
+                { to: '/revision', label: 'Revision' },
+                { to: '/today', label: "Today's Task" },
+                { to: '/solved', label: 'Solved Question' },
+                { to: '/topics', label: 'Topics' },
+              ].map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  role="menuitem"
+                  className={({ isActive }) =>
+                    `block px-6 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                      isActive ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                    }`
+                  }
+                  onClick={() => setOpen(false)}
+                  end={link.to === '/'}
+                >
+                  {link.label}
+                </NavLink>
+              ))}
+              <div className="mx-6 h-px bg-white/10" />
+            </div>
           ) : null}
-          <NavLink
-            to="/solved"
-            role="menuitem"
-            className={({ isActive }) =>
-              [
-                'block px-4 py-3 text-sm',
-                isActive ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/5',
-              ].join(' ')
-            }
-            onClick={() => setOpen(false)}
-          >
-            Solved
-          </NavLink>
-          <NavLink
-            to="/logout"
-            role="menuitem"
-            className={() => 'block px-4 py-3 text-sm text-slate-200 hover:bg-white/5'}
-            onClick={() => setOpen(false)}
-          >
-            Logout
-          </NavLink>
+          <div className="flex flex-col">
+            <NavLink
+              to="/solved"
+              role="menuitem"
+              className={({ isActive }) =>
+                `block px-6 py-4 text-[10px] font-black tracking-widest uppercase transition-all ${
+                  isActive ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`
+              }
+              onClick={() => setOpen(false)}
+            >
+              History
+            </NavLink>
+            <NavLink
+              to="/logout"
+              role="menuitem"
+              className="block px-6 py-4 text-[10px] font-black tracking-widest uppercase text-rose-400 transition-all hover:bg-rose-500/10 hover:text-rose-300"
+              onClick={() => setOpen(false)}
+            >
+              Logout
+            </NavLink>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function notificationsStorageKey() {
+  return 'dsaTracker.notifications.recent';
+}
+
+function readNotifications() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(notificationsStorageKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeNotifications(items) {
+  if (typeof window === 'undefined') return;
+  try {
+    const next = Array.isArray(items) ? items.slice(0, 10) : [];
+    window.localStorage.setItem(notificationsStorageKey(), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+function NotificationsMenu({ items, onOpenChange, variant = 'desktop' }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (onOpenChange) onOpenChange(open);
+  }, [onOpenChange, open]);
+
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      if (!open) return;
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) setOpen(false);
+    }
+
+    function onKeyDown(e) {
+      if (!open) return;
+      if (e.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  const btnClass =
+    navLinkBase +
+    ' inline-flex items-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ' +
+    (variant === 'mobile' ? 'px-4 py-2.5' : '') +
+    (open ? ' bg-white/10 ring-amber-500/30' : '');
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        className={btnClass}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        title="Notifications"
+      >
+        <div className="relative">
+          <Bell className={`h-4 w-4 transition-colors duration-300 ${open ? 'text-amber-500' : 'text-slate-200'}`} />
+          {items && items.length > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white animate-pulse">
+              {items.length}
+            </span>
+          )}
+        </div>
+        <span className={`text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${open ? 'text-amber-500' : 'text-slate-200'}`}>Alerts</span>
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 mt-3 w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-[2rem] border border-white/10 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl z-[600] animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <div className="border-b border-white/10 px-8 py-5">
+            <p className="text-xs font-black uppercase tracking-widest text-white">Recent notifications</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Last 10 closed popups</p>
+          </div>
+
+          <div className="max-h-[360px] overflow-auto overscroll-contain">
+            {items && items.length ? (
+              items.map((n) => (
+                <div key={n.id} className="border-b border-white/5 px-8 py-5 last:border-b-0 transition-colors hover:bg-white/5">
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="text-sm font-bold text-slate-100">{n.title || 'Reminder'}</p>
+                    <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/5 px-2 py-1 text-[10px] font-bold text-slate-400">
+                      <Clock className="h-3 w-3 opacity-50" />
+                      <span>{formatIstDateTime(n.ts)}</span>
+                    </div>
+                  </div>
+                  {n.message ? (
+                    <p className="mt-2 whitespace-pre-line text-xs font-medium leading-relaxed text-slate-400">{n.message}</p>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <div className="px-8 py-10 text-center">
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">No notifications yet.</p>
+              </div>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
@@ -299,6 +379,8 @@ export default function Navbar() {
   const [homeReminderCompletionPct, setHomeReminderCompletionPct] = useState(null);
   const [homeReminderMode, setHomeReminderMode] = useState('summary');
 
+  const [notifications, setNotifications] = useState(() => readNotifications());
+
   const [weekBucketDueAtMs, setWeekBucketDueAtMs] = useState(null);
   const [weekBucketCount, setWeekBucketCount] = useState(0);
 
@@ -313,6 +395,46 @@ export default function Navbar() {
   const isHomeRoute = pathname === '/';
 
   const potdUi = useMemo(() => potdMeta(potdSolved), [potdSolved]);
+
+  function resolveReminderMessage() {
+    if (homeReminderMode === 'potd') return 'DO IT ASAP !!! BEFORE SLEEPING';
+    if (homeReminderMode === 'contest') return homeReminderText || 'Contest Reminder';
+    if (homeReminderMode === 'week') return homeReminderText || 'Weekly Revision Reminder';
+    return homeReminderText || 'Complete your revision ASAP!!!!';
+  }
+
+  function resolveReminderTitle() {
+    if (homeReminderMode === 'potd') return 'POTD';
+    if (homeReminderMode === 'contest') return 'Contest';
+    if (homeReminderMode === 'week') return 'Weekly Revision';
+    return 'Reminder';
+  }
+
+  function recordReminderNotification() {
+    if (typeof window === 'undefined') return;
+    if (!homeReminderOpen) return;
+    const message = String(resolveReminderMessage() || '').trim();
+    if (!message) return;
+
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      ts: Date.now(),
+      mode: homeReminderMode,
+      title: resolveReminderTitle(),
+      message,
+      route: pathname,
+    };
+
+    const current = readNotifications();
+    const next = [entry, ...(Array.isArray(current) ? current : [])].slice(0, 10);
+    writeNotifications(next);
+    setNotifications(next);
+  }
+
+  function closeHomeReminder() {
+    recordReminderNotification();
+    setHomeReminderOpen(false);
+  }
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 1000);
@@ -609,20 +731,21 @@ export default function Navbar() {
   }, [authHeaders, hasContestTomorrow, isHomeRoute, isLoggedIn, pathname, token]);
 
   return (
-    <div className="sticky top-0 z-40 border-b border-white/5 bg-[#060a18]/80 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4">
+    <div className="sticky top-0 z-[500] bg-transparent">
+      <div className="w-full">
+        <div className="flex items-center justify-between gap-3 rounded-none border border-white/10 bg-slate-950/60 px-5 py-3.5 backdrop-blur ring-1 ring-fuchsia-500/10 shadow-lg shadow-black/30">
         <Link to="/" className="inline-flex items-center gap-2">
           <Code2 className="h-5 w-5 text-yellow-400" />
-          <span className="text-base font-semibold tracking-tight text-white">DSA Tracker</span>
+          <span className="text-lg font-bold tracking-tight text-white">DSA Tracker</span>
         </Link>
 
-        <div className="flex items-center gap-2 sm:hidden">
+        <div className="flex items-center gap-5 sm:hidden">
           {isLoggedIn ? (
             <a
               href={potdHref}
               target="_blank"
               rel="noreferrer"
-              className={navLinkBase + ' inline-flex items-center gap-2 ' + potdUi.pill}
+              className={navLinkBase + ' inline-flex items-center gap-2 ' + potdUi.pill + ' !px-4.5 !py-2.5'}
               title={potdTitle ? `POTD: ${potdTitle}` : 'POTD'}
             >
               <span className={'text-xs font-semibold tracking-wide ' + potdUi.text}>POTD</span>
@@ -631,10 +754,12 @@ export default function Navbar() {
             </a>
           ) : null}
 
+          {isLoggedIn ? <NotificationsMenu items={notifications} variant="mobile" /> : null}
+
           {isLoggedIn ? <UserMenu name={user?.name} variant="mobile" /> : <NavItem to="/login">Login</NavItem>}
         </div>
 
-        <nav className="hidden items-center gap-1 sm:flex">
+        <nav className="hidden items-center gap-5 sm:flex">
           <NavItem to="/">Home</NavItem>
           <NavItem to="/questions">Questions</NavItem>
           {isLoggedIn ? <NavItem to="/revision">Revision</NavItem> : null}
@@ -663,8 +788,11 @@ export default function Navbar() {
             </a>
           ) : null}
 
+          {isLoggedIn ? <NotificationsMenu items={notifications} /> : null}
+
           {isLoggedIn ? <UserMenu name={user?.name} /> : <NavItem to="/login">Login</NavItem>}
         </nav>
+        </div>
       </div>
 
       {homeReminderOpen
@@ -694,7 +822,7 @@ export default function Navbar() {
                     <button
                       type="button"
                       className="rounded-2xl bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/10 hover:bg-white/10 sm:px-5 sm:py-3"
-                      onClick={() => setHomeReminderOpen(false)}
+                      onClick={closeHomeReminder}
                     >
                       Close
                     </button>

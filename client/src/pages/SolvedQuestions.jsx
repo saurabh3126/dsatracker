@@ -1,7 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
-import { RefreshCcw } from 'lucide-react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { RefreshCcw, Search, Calendar, ChevronDown, Clock, Hash } from 'lucide-react';
 import { apiGet, apiPost } from '../lib/api.js';
 import { useAuth } from '../auth/AuthContext.jsx';
+
+function formatIstDateTime(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  if (!Number.isFinite(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  }).format(d);
+}
 
 function toISTMonthKey(date) {
   const d = date instanceof Date ? date : new Date(date);
@@ -39,8 +54,20 @@ export default function SolvedQuestions() {
   const [pageByMonthKey, setPageByMonthKey] = useState({});
 
   const [reviseItem, setReviseItem] = useState(null);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const monthDropdownRef = useRef(null);
 
   const [quizItem, setQuizItem] = useState(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(event.target)) {
+        setIsMonthDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizError, setQuizError] = useState('');
   const [quizData, setQuizData] = useState(null);
@@ -254,119 +281,141 @@ export default function SolvedQuestions() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Solved</h1>
-          <p className="mt-1 text-sm text-slate-400">Stored month-wise from your LeetCode accepted submissions.</p>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2">
-            <div className="text-xs font-semibold text-slate-400">Month</div>
-            <select
-              className="rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-slate-200"
-              value={selectedMonthKey}
-              onChange={(e) => setSelectedMonthKey(e.target.value)}
-              disabled={!monthGroups.length}
-            >
-              {monthGroups.map((g) => (
-                <option key={g.key} value={g.key}>
-                  {g.label || g.key}
-                </option>
-              ))}
-            </select>
+    <div className="flex flex-col min-h-screen">
+      <div className="mx-auto w-full max-w-7xl px-4 py-12 flex-1">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-12">
+          <div>
+            <h1 className="text-4xl font-black tracking-tight text-white mb-2">
+              Solved <span className="text-amber-500">Question</span>
+            </h1>
+            <div className="flex items-center gap-3 text-slate-400">
+              <p className="text-sm font-bold uppercase tracking-widest italic">Syncing Month-wise logs</p>
+            </div>
           </div>
 
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 hover:bg-white/10"
-            onClick={async () => {
-              setLoading(true);
-              try {
-                setSyncing(true);
-                try {
-                  setError('');
-                  setMessage('');
-                  await syncLeetcodeToStored();
-                  await loadStoredSolved();
-                  await loadMonthlyRevisionArchive();
-                  setMessage('Synced successfully.');
-                } finally {
-                  setSyncing(false);
-                }
-              } finally {
-                setLoading(false);
-              }
-            }}
-          >
-            <RefreshCcw className="h-4 w-4" />
-            Refresh
-          </button>
-        </div>
-      </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">History</div>
+              
+              <div className="relative" ref={monthDropdownRef}>
+                <div 
+                  onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                  className={`bg-[#05070a] border border-white/10 px-5 py-2.5 text-sm cursor-pointer flex items-center justify-between gap-3 transition-all duration-200 min-w-[200px] ${isMonthDropdownOpen ? 'rounded-t-[1.5rem] rounded-b-none border-amber-500 ring-1 ring-amber-500/30' : 'rounded-full hover:border-white/20'}`}
+                >
+                  <span className="font-medium text-white italic">
+                    {monthGroups.find(g => g.key === selectedMonthKey)?.label || 'Select Month'}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${isMonthDropdownOpen ? 'rotate-180 text-amber-500' : 'text-slate-500'}`} />
+                </div>
 
-      <div className="mt-6 rounded-xl border border-white/10 bg-slate-900/40 p-4">
-        {message ? <div className="text-sm text-emerald-300">{message}</div> : null}
-        {error ? <div className="mt-1 text-sm text-rose-300">{error}</div> : null}
-      </div>
-
-      <div className="mt-4 flex flex-col gap-2 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          Total: {total}
-          {totalStored ? <span className="text-slate-500"> (stored: {totalStored})</span> : null}
-        </div>
-        <div className="text-xs text-slate-500">{syncing ? 'Syncing from LeetCode…' : null}</div>
-      </div>
-
-      {loading ? <div className="mt-6 text-slate-300">Loading…</div> : null}
-
-      <div className="mt-6 space-y-3">
-        {!loading && !visibleGroups.length ? (
-          <div className="text-sm text-slate-500">No solved questions stored yet.</div>
-        ) : null}
-
-        {!loading
-          ? visibleGroups.map((group) => {
-              const totalPages = Math.max(1, Math.ceil(group.items.length / PAGE_SIZE));
-              const rawPage = Number(pageByMonthKey[group.key] || 1);
-              const page = Number.isFinite(rawPage) ? Math.min(Math.max(1, rawPage), totalPages) : 1;
-              const start = (page - 1) * PAGE_SIZE;
-              const end = start + PAGE_SIZE;
-              const pageItems = totalPages > 1 ? group.items.slice(start, end) : group.items;
-
-              return (
-                <div key={group.key} className="rounded-xl border border-white/10 bg-slate-900/30 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-100">{group.label || group.key}</div>
-                    <div className="text-xs text-slate-500">{group.items.length}</div>
-                  </div>
-
-                  {totalPages > 1 ? (
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <div className="text-xs text-slate-500">
-                        Page {page} / {totalPages}
+                {isMonthDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 z-[100] mt-0 max-h-[300px] overflow-y-auto rounded-b-[1.5rem] border border-t-0 border-amber-500 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)] dsa-scroll">
+                    {monthGroups.map((g) => (
+                      <div 
+                        key={g.key}
+                        className={`px-5 py-3 text-sm cursor-pointer transition-colors hover:bg-amber-500/10 hover:text-white ${selectedMonthKey === g.key ? 'bg-amber-500/5 text-amber-500 font-bold' : 'text-slate-400'}`}
+                        onClick={() => {
+                          setSelectedMonthKey(g.key);
+                          setIsMonthDropdownOpen(false);
+                        }}
+                      >
+                        {g.label || g.key}
                       </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="group inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-6 py-2.5 text-sm font-bold text-white transition-all hover:bg-amber-500 hover:border-amber-500 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]"
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  setSyncing(true);
+                  try {
+                    setError('');
+                    setMessage('');
+                    await syncLeetcodeToStored();
+                    await loadStoredSolved();
+                    await loadMonthlyRevisionArchive();
+                    setMessage('Synced successfully.');
+                  } finally {
+                    setSyncing(false);
+                  }
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              <RefreshCcw className={`h-4 w-4 transition-transform group-hover:rotate-180 ${syncing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {message && (
+          <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm font-bold text-emerald-400">
+            {message}
+          </div>
+        )}
+        {error && (
+          <div className="mb-6 rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm font-bold text-rose-400">
+            {error}
+          </div>
+        )}
+
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-400">
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase tracking-widest opacity-50">Total Solved</span>
+              <span className="text-xl font-bold text-white">{total}</span>
+            </div>
+          </div>
+          <div className="font-bold text-amber-500/80 tracking-widest uppercase text-[10px]">
+            {syncing ? 'Syncing from LeetCode...' : 'Logs updated'}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-500/20 border-t-amber-500"></div>
+          </div>
+        ) : (
+          <div className="space-y-12">
+            {!visibleGroups.length ? (
+              <div className="rounded-3xl border border-dashed border-white/10 p-20 text-center">
+                <div className="text-slate-500 font-bold italic">No solved questions found for this period.</div>
+              </div>
+            ) : (
+              visibleGroups.map((group) => {
+                const totalPages = Math.max(1, Math.ceil(group.items.length / PAGE_SIZE));
+                const rawPage = Number(pageByMonthKey[group.key] || 1);
+                const page = Number.isFinite(rawPage) ? Math.min(Math.max(1, rawPage), totalPages) : 1;
+                const start = (page - 1) * PAGE_SIZE;
+                const end = start + PAGE_SIZE;
+                const pageItems = totalPages > 1 ? group.items.slice(start, end) : group.items;
+
+                return (
+                  <div key={group.key} className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                      <h2 className="text-2xl font-black text-white">{group.label || group.key}</h2>
+                      <span className="rounded-full bg-white/5 px-4 py-1 text-xs font-bold text-slate-400 border border-white/10">
+                        {group.items.length} questions
+                      </span>
+                    </div>
+
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
                           disabled={page <= 1}
-                          onClick={() =>
-                            setPageByMonthKey((prev) => ({
-                              ...prev,
-                              [group.key]: Math.max(1, page - 1),
-                            }))
-                          }
-                          className={
-                            'rounded-lg px-3 py-2 text-xs ring-1 ' +
-                            (page <= 1
-                              ? 'cursor-not-allowed bg-white/5 text-slate-500 ring-white/10'
-                              : 'bg-white/5 text-slate-200 ring-white/10 hover:bg-white/10')
-                          }
+                          onClick={() => setPageByMonthKey((prev) => ({ ...prev, [group.key]: Math.max(1, page - 1) }))}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-slate-400 border border-white/10 transition-all hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          Prev
+                          &lt;
                         </button>
-
                         {Array.from({ length: totalPages }).map((_, idx) => {
                           const n = idx + 1;
                           const isActive = n === page;
@@ -374,226 +423,240 @@ export default function SolvedQuestions() {
                             <button
                               key={n}
                               type="button"
-                              onClick={() =>
-                                setPageByMonthKey((prev) => ({
-                                  ...prev,
-                                  [group.key]: n,
-                                }))
-                              }
-                              className={
-                                'rounded-lg px-3 py-2 text-xs ring-1 ' +
-                                (isActive
-                                  ? 'bg-white/10 text-slate-100 ring-white/20'
-                                  : 'bg-white/5 text-slate-200 ring-white/10 hover:bg-white/10')
-                              }
+                              onClick={() => setPageByMonthKey((prev) => ({ ...prev, [group.key]: n }))}
+                              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all text-sm font-bold ${
+                                isActive ? 'bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
+                              }`}
                             >
                               {n}
                             </button>
                           );
                         })}
-
                         <button
                           type="button"
                           disabled={page >= totalPages}
-                          onClick={() =>
-                            setPageByMonthKey((prev) => ({
-                              ...prev,
-                              [group.key]: Math.min(totalPages, page + 1),
-                            }))
-                          }
-                          className={
-                            'rounded-lg px-3 py-2 text-xs ring-1 ' +
-                            (page >= totalPages
-                              ? 'cursor-not-allowed bg-white/5 text-slate-500 ring-white/10'
-                              : 'bg-white/5 text-slate-200 ring-white/10 hover:bg-white/10')
-                          }
+                          onClick={() => setPageByMonthKey((prev) => ({ ...prev, [group.key]: Math.min(totalPages, page + 1) }))}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-slate-400 border border-white/10 transition-all hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          Next
+                          &gt;
                         </button>
                       </div>
-                    </div>
-                  ) : null}
+                    )}
 
-                  <div className="mt-3 space-y-3">
-                    {pageItems.map((it) => (
-                      <div
-                        key={String(it?._id || it?.questionKey || it?.ref)}
-                        className="rounded-xl border border-white/10 bg-slate-900/20 p-4"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-slate-100">{it.title}</div>
-                            <div className="mt-1 truncate text-xs text-slate-400">{it.ref}</div>
-                          </div>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      {pageItems.map((it) => (
+                        <div
+                          key={String(it?._id || it?.questionKey || it?.ref)}
+                          className="group relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#1C1C2E]/40 p-6 backdrop-blur-xl transition-all duration-300 hover:border-amber-500/50 hover:bg-[#1C1C2E]/60"
+                        >
+                          {/* Shimmer Effect */}
+                          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
+                          
+                          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="truncate text-lg font-black text-white group-hover:text-amber-500 transition-colors">
+                                {it.title}
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-black uppercase tracking-[0.15em] text-slate-500/80">
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="h-3 w-3 text-amber-500/40" />
+                                  <span>{formatIstDateTime(it.solvedAt).split(',')[0]}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 border-l border-white/5 pl-4">
+                                  <Clock className="h-3 w-3 text-amber-500/40" />
+                                  <span>{formatIstDateTime(it.solvedAt).split(',')[1]}</span>
+                                </div>
+                              </div>
+                            </div>
 
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={it.link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-200 ring-1 ring-white/10 hover:bg-white/10"
-                            >
-                              Open
-                            </a>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <a
+                                href={it.link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/10"
+                                title="Open Link"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </a>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setQuizItem({ title: it.title, ref: it.ref });
-                                setQuizError('');
-                                setQuizData(null);
-                                setAiStatus(null);
-                                setQuizSelections({});
-                                generateQuizFor(it);
-                              }}
-                              className="rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 ring-1 ring-white/10 hover:bg-white/10"
-                            >
-                              Quiz
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuizItem({ title: it.title, ref: it.ref, solvedAt: it.solvedAt });
+                                  setQuizError('');
+                                  setQuizData(null);
+                                  setAiStatus(null);
+                                  setQuizSelections({});
+                                  generateQuizFor(it);
+                                }}
+                                className="flex items-center gap-2 rounded-2xl bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/10"
+                              >
+                                Quiz
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => setReviseItem({ title: it.title, ref: it.ref })}
-                              className="rounded-lg bg-indigo-500/20 px-3 py-2 text-xs font-semibold text-indigo-200 ring-1 ring-indigo-500/30 hover:bg-indigo-500/25"
-                            >
-                              Revise
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() => setReviseItem({ title: it.title, ref: it.ref })}
+                                className="flex items-center gap-2 rounded-2xl bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-500 transition-all hover:bg-amber-500 hover:text-black border border-amber-500/20"
+                              >
+                                Revise
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          : null}
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
 
-      {quizItem ? (
+      {quizItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setQuizItem(null);
-              setQuizData(null);
-              setQuizError('');
-              setQuizLoading(false);
-              setQuizSelections({});
             }
           }}
         >
           <div className="w-[min(980px,calc(100vw-2rem))]">
-            <div className="dsa-scroll max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-8">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+            <div className="dsa-scroll max-h-[85vh] overflow-y-auto rounded-[2.5rem] border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-10">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-6">
                 <div className="min-w-0">
-                  <p className="text-sm text-slate-300">Quiz</p>
-                  <p className="mt-1 truncate text-xl font-semibold text-white">{quizItem.title}</p>
-                  <p className="mt-1 truncate text-xs text-slate-400">{quizItem.ref}</p>
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">AI Assessment</div>
+                  <h2 className="mt-2 text-2xl font-black text-white">{quizItem.title}</h2>
+                  <div className="mt-1 flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3 w-3 text-amber-500/40" />
+                      <span>{formatIstDateTime(quizItem.solvedAt).split(',')[0]}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3 w-3 text-amber-500/40" />
+                      <span>{formatIstDateTime(quizItem.solvedAt).split(',')[1]}</span>
+                    </div>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  className="rounded-2xl bg-white/5 px-5 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
-                  onClick={() => {
-                    setQuizItem(null);
-                    setQuizData(null);
-                    setQuizError('');
-                    setQuizLoading(false);
-                    setQuizSelections({});
-                  }}
+                  className="rounded-2xl bg-white/5 p-3 text-slate-400 border border-white/10 hover:bg-white/10 hover:text-white transition-all"
+                  onClick={() => setQuizItem(null)}
                 >
-                  Close
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
 
-              <div className="mt-5">
-                {quizLoading ? <div className="text-sm text-slate-300">Loading…</div> : null}
-                {quizError ? <div className="mt-2 text-sm text-rose-300">{quizError}</div> : null}
-
-                {aiStatus?.configured === false ? (
-                  <div className="mt-2 text-xs text-slate-400">
-                    AI status: not configured (server missing{' '}
-                    <span className="font-mono">
-                      {String(aiStatus?.provider || 'openai').toLowerCase() === 'gemini' ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY'}
-                    </span>
-                    ).
+              <div className="mt-8">
+                {quizLoading && (
+                  <div className="flex flex-col items-center justify-center py-12 gap-4">
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500/20 border-t-amber-500"></div>
+                    <div className="text-sm font-bold text-slate-500 uppercase tracking-widest">Generating Quiz Details...</div>
                   </div>
-                ) : null}
+                )}
+                
+                {quizError && (
+                  <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6 text-center">
+                    <div className="text-sm font-bold text-rose-400">{quizError}</div>
+                  </div>
+                )}
 
-                {!quizLoading && !quizError ? (
-                  <button
-                    type="button"
-                    className="rounded-2xl bg-white/5 px-5 py-3 text-sm font-semibold text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
-                    onClick={() => generateQuizFor(quizItem)}
-                  >
-                    Reload
-                  </button>
-                ) : null}
+                {aiStatus?.configured === false && (
+                  <div className="mb-6 rounded-xl bg-amber-500/10 p-4 border border-amber-500/20 text-xs font-bold text-amber-400">
+                    AI CONFIG REQUIRED: Please set {String(aiStatus?.provider || 'openai').toUpperCase()}_API_KEY in your environment.
+                  </div>
+                )}
+
+                {!quizLoading && !quizError && (
+                   <div className="flex justify-end mb-4">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-white/10 hover:text-white transition-all"
+                      onClick={() => generateQuizFor(quizItem)}
+                    >
+                      Regenerate
+                    </button>
+                   </div>
+                )}
 
                 {Array.isArray(quizData?.questions) && quizData.questions.length ? (
-                  <div className="mt-5 space-y-4">
+                  <div className="space-y-6">
                     {quizData.questions.map((q, idx) => (
-                      <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="text-sm font-semibold text-white">
-                            {idx + 1}. {q.question}
+                      <div key={idx} className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-all hover:bg-white/[0.07]">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="text-lg font-bold text-white leading-snug">
+                            <span className="text-amber-500 mr-2 text-sm">0{idx + 1}.</span> {q.question}
                           </div>
-                          {q.category ? (
-                            <div className="shrink-0 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] text-slate-300">
+                          {q.category && (
+                            <span className="shrink-0 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
                               {q.category}
-                            </div>
-                          ) : null}
+                            </span>
+                          )}
                         </div>
 
-                        <div className="mt-3 grid gap-2">
+                        <div className="mt-6 grid gap-3">
                           {q.options.map((opt, oi) => {
                             const selectedIndex = quizSelections[idx];
                             const answered = selectedIndex !== undefined;
                             const isCorrect = oi === q.correctIndex;
                             const isSelected = oi === selectedIndex;
 
-                            const cls =
-                              'rounded-xl border px-3 py-2 text-left text-sm transition-colors ' +
-                              (answered
+                            const cls = `group relative overflow-hidden rounded-2xl border px-6 py-4 text-left transition-all duration-300 ${
+                              answered
                                 ? isCorrect
-                                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                                  ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-100'
                                   : isSelected
-                                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
-                                    : 'border-white/10 bg-black/20 text-slate-200'
-                                : 'cursor-pointer border-white/10 bg-black/20 text-slate-200 hover:bg-white/10');
+                                    ? 'border-rose-500/50 bg-rose-500/10 text-rose-100'
+                                    : 'border-white/5 bg-black/40 text-slate-400 opacity-50'
+                                : 'cursor-pointer border-white/10 bg-black/40 text-slate-300 hover:border-amber-500/50 hover:bg-black/60 hover:text-white'
+                            }`;
 
                             return (
-                              <button
-                                key={oi}
-                                type="button"
-                                className={cls}
-                                disabled={answered}
-                                onClick={() => {
-                                  if (answered) return;
-                                  setQuizSelections((prev) => ({ ...prev, [idx]: oi }));
-                                }}
-                              >
-                                <span className="mr-2 font-semibold text-slate-300">
-                                  {String.fromCharCode(65 + oi)}.
-                                </span>
-                                {opt}
+                              <button key={oi} type="button" className={cls} disabled={answered} onClick={() => {
+                                if (!answered) setQuizSelections(prev => ({ ...prev, [idx]: oi }));
+                              }}>
+                                <div className="relative flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black ring-1 transition-colors ${
+                                      answered 
+                                        ? isCorrect ? 'bg-emerald-500 text-black ring-emerald-500' : isSelected ? 'bg-rose-500 text-white ring-rose-500' : 'bg-white/5 text-slate-500 ring-white/10'
+                                        : 'bg-white/5 text-slate-400 ring-white/10 group-hover:bg-amber-500 group-hover:text-black group-hover:ring-amber-500'
+                                    }`}>
+                                      {String.fromCharCode(65 + oi)}
+                                    </span>
+                                    <span className="text-sm font-bold tracking-tight">{opt}</span>
+                                  </div>
+                                </div>
                               </button>
                             );
                           })}
                         </div>
 
-                        {quizSelections[idx] !== undefined ? (
-                          <div className="mt-3 text-xs text-slate-300">
-                            <div>
-                              Correct answer:{' '}
-                              <span className="font-semibold text-slate-100">
-                                {String.fromCharCode(65 + q.correctIndex)}. {q.options[q.correctIndex]}
-                              </span>
+                        {quizSelections[idx] !== undefined && (
+                          <div className="mt-6 animate-in fade-in slide-in-from-top-2 duration-500">
+                            <div className="rounded-2xl bg-white/5 p-5 border border-white/10">
+                              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-500/80 mb-3">
+                                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                Perspective Analysis
+                              </div>
+                              <div className="text-sm font-bold text-white mb-2">
+                                Correct Answer: {String.fromCharCode(65 + q.correctIndex)}. {q.options[q.correctIndex]}
+                              </div>
+                              {q.explanation && <p className="text-xs font-medium leading-relaxed text-slate-400">{q.explanation}</p>}
                             </div>
-                            {q.explanation ? <div className="mt-2">{q.explanation}</div> : null}
                           </div>
-                        ) : null}
+                        )}
                       </div>
                     ))}
                   </div>
@@ -602,63 +665,72 @@ export default function SolvedQuestions() {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {reviseItem ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur" role="dialog" aria-modal="true">
-          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
-            <div className="text-base font-semibold text-slate-100">Add to revision</div>
-            <div className="mt-1 text-sm text-slate-400">Choose a bucket for:</div>
-            <div className="mt-2 truncate text-sm font-semibold text-slate-200">{reviseItem.title}</div>
-
-            <div className="mt-4 grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                className="rounded-xl bg-emerald-500/15 px-3 py-2 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-500/25 hover:bg-emerald-500/20"
-                onClick={async () => {
-                  const it = reviseItem;
-                  setReviseItem(null);
-                  await reviseSolved(it, 'today');
-                }}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                className="rounded-xl bg-indigo-500/15 px-3 py-2 text-sm font-semibold text-indigo-200 ring-1 ring-indigo-500/25 hover:bg-indigo-500/20"
-                onClick={async () => {
-                  const it = reviseItem;
-                  setReviseItem(null);
-                  await reviseSolved(it, 'week');
-                }}
-              >
-                Upcoming Sunday
-              </button>
-              <button
-                type="button"
-                className="rounded-xl bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-200 ring-1 ring-amber-500/25 hover:bg-amber-500/20"
-                onClick={async () => {
-                  const it = reviseItem;
-                  setReviseItem(null);
-                  await reviseSolved(it, 'month');
-                }}
-              >
-                Month
-              </button>
+      {reviseItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md" role="dialog" aria-modal="true">
+          <div className="w-full max-w-sm overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0b0f1a]/95 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
+            <div className="bg-amber-500 p-1 text-center text-[10px] font-black uppercase tracking-[0.3em] text-black">
+              System Scheduler
             </div>
+            <div className="p-8">
+              <h2 className="text-xl font-black text-white">Add to <span className="text-amber-500">Revision</span></h2>
+              <p className="mt-1 text-xs font-bold text-slate-500 uppercase tracking-widest">Select Target Window</p>
+              
+              <div className="mt-4 rounded-2xl bg-white/5 p-4 border border-white/10">
+                <div className="truncate text-sm font-bold text-white italic">"{reviseItem.title}"</div>
+              </div>
 
-            <div className="mt-4">
+              <div className="mt-8 grid grid-cols-1 gap-3">
+                <button
+                  type="button"
+                  className="group flex flex-col items-center justify-center rounded-2xl bg-white/5 p-4 border border-white/10 transition-all hover:bg-amber-500 hover:border-amber-500"
+                  onClick={async () => {
+                    const it = reviseItem;
+                    setReviseItem(null);
+                    await reviseSolved(it, 'today');
+                  }}
+                >
+                  <span className="text-sm font-black text-white group-hover:text-black uppercase tracking-widest">Daily</span>
+                  <span className="mt-1 text-[10px] font-bold text-slate-500 group-hover:text-black/70">Execute Session Today</span>
+                </button>
+                <button
+                  type="button"
+                  className="group flex flex-col items-center justify-center rounded-2xl bg-white/5 p-4 border border-white/10 transition-all hover:bg-amber-500 hover:border-amber-500"
+                  onClick={async () => {
+                    const it = reviseItem;
+                    setReviseItem(null);
+                    await reviseSolved(it, 'week');
+                  }}
+                >
+                  <span className="text-sm font-black text-white group-hover:text-black uppercase tracking-widest">Weekly</span>
+                  <span className="mt-1 text-[10px] font-bold text-slate-500 group-hover:text-black/70">Schedule for Sunday</span>
+                </button>
+                <button
+                  type="button"
+                  className="group flex flex-col items-center justify-center rounded-2xl bg-white/5 p-4 border border-white/10 transition-all hover:bg-amber-500 hover:border-amber-500"
+                  onClick={async () => {
+                    const it = reviseItem;
+                    setReviseItem(null);
+                    await reviseSolved(it, 'month');
+                  }}
+                >
+                  <span className="text-sm font-black text-white group-hover:text-black uppercase tracking-widest">Monthly</span>
+                  <span className="mt-1 text-[10px] font-bold text-slate-500 group-hover:text-black/70">Archive for Review</span>
+                </button>
+              </div>
+
               <button
                 type="button"
-                className="w-full rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 ring-1 ring-white/10 hover:bg-white/10"
+                className="mt-6 w-full py-4 text-xs font-black uppercase tracking-[0.2em] text-slate-500 hover:text-white transition-colors"
                 onClick={() => setReviseItem(null)}
               >
-                Cancel
+                Dismiss Request
               </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

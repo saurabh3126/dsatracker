@@ -2,12 +2,27 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { apiGet } from '../lib/api.js';
+import { 
+  CheckCircle2, 
+  Circle, 
+  Trash2, 
+  ExternalLink, 
+  Flame, 
+  Clock, 
+  Calendar, 
+  ChevronLeft, 
+  ChevronRight,
+  Plus,
+  LayoutGrid,
+  Trophy,
+  AlertCircle
+} from 'lucide-react';
 
 function difficultyMeta(difficulty) {
   const d = String(difficulty || '').toLowerCase();
-  if (d === 'hard') return { label: 'Hard', badge: 'bg-rose-500/15 text-rose-300 ring-rose-500/30' };
-  if (d === 'medium') return { label: 'Medium', badge: 'bg-amber-500/15 text-amber-300 ring-amber-500/30' };
-  return { label: 'Easy', badge: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30' };
+  if (d === 'hard') return { label: 'Hard', badge: 'bg-rose-500/20 text-rose-400 border-rose-500/20', glow: 'shadow-[0_0_15px_rgba(244,63,94,0.2)]' };
+  if (d === 'medium') return { label: 'Medium', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/20', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.2)]' };
+  return { label: 'Easy', badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20', glow: 'shadow-[0_0_15px_rgba(16,185,129,0.2)]' };
 }
 
 function utcDateKey(date = new Date()) {
@@ -120,8 +135,6 @@ export default function TodayTask() {
   }, []);
 
   useEffect(() => {
-    // Default selectors to "today" if empty, and on reset move unfinished
-    // todos from yesterday into today.
     if (typeof window === 'undefined') {
       setSelectedDateKey((prev) => (prev ? prev : todoDayKey));
       return;
@@ -135,7 +148,6 @@ export default function TodayTask() {
       !selectedDateKey || (prevTodoDayKey && selectedDateKey === prevTodoDayKey && prevTodoDayKey !== todoDayKey);
     if (shouldAutoAdvance) setSelectedDateKey(todoDayKey);
 
-    // Only rollover once per destination day.
     if (alreadyRolledTo === todoDayKey) return;
 
     const fromKey = addUtcDaysToKey(todoDayKey, -1);
@@ -170,11 +182,9 @@ export default function TodayTask() {
         const next = [...moved, ...current];
         window.localStorage.setItem(`dsaTracker.todo.list.${todoDayKey}`, JSON.stringify(next));
 
-        // "Move": remove unfinished items from the previous day list.
         const remainingFrom = fromList.filter((t) => t && Boolean(t.done) === true);
         window.localStorage.setItem(`dsaTracker.todo.list.${fromKey}`, JSON.stringify(remainingFrom));
 
-        // If the UI is showing the destination day (or we auto-advanced to it), refresh state.
         if (selectedDateKey === todoDayKey || shouldAutoAdvance) setTodos(next);
       }
 
@@ -287,224 +297,280 @@ export default function TodayTask() {
   const todayCheckedCount = useMemo(() => {
     return todayBucket.reduce((acc, q) => (checkedByKey[`task:${q._id}`] ? acc + 1 : acc), 0);
   }, [checkedByKey, todayBucket]);
-  const taskRemaining = Math.max(0, todayBucket.length - todayCheckedCount);
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10 text-slate-100">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col min-h-screen">
+      <div className="mx-auto w-full max-w-7xl px-4 py-12 flex-1">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-12">
         <div>
-          <p className="text-sm text-slate-400">Today’s Task</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">POTD + Revision Due</h1>
+          <h1 className="text-4xl font-black tracking-tight text-white mb-2">Today's Focus</h1>
+          <div className="flex items-center gap-3 text-slate-400">
+            <p className="text-sm font-bold uppercase tracking-widest">{formatKeyDMY(dayKey)}</p>
+          </div>
         </div>
 
-        <div className="flex gap-2">
-          <Link
-            to="/revision"
-            className="rounded-xl bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
-          >
-            Open Revision
-          </Link>
-          <a
-            href={potdLink}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-xl bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
-          >
-            Open LeetCode
-          </a>
-        </div>
-      </div>
-
-      {!isAuthed ? (
-        <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          You’re not logged in, so this is showing global demo data. Log in to see your personal tasks.
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="mt-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          {error}
-        </div>
-      ) : null}
-
-      {loading ? (
-        <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">Loading…</div>
-      ) : (
-        <>
-          <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Tasks half */}
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-slate-400">POTD</p>
-                    <p className="mt-1 text-lg font-semibold text-white">{potdTitle}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {potdDifficulty ? (
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1 ${potdDiff.badge}`}>
-                        {potdDiff.label}
-                      </span>
-                    ) : null}
-                    <a
-                      href={potdLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="shrink-0 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
-                    >
-                      Open
-                    </a>
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <p className="text-sm">
-                    Status:{' '}
-                    <span className={potdSolved ? 'text-emerald-300' : 'text-amber-300'}>
-                      {potdSolved ? 'Solved' : 'Pending'}
-                    </span>
-                  </p>
-                  {!potdSolved && potdReason ? (
-                    <p className="mt-2 text-xs text-slate-300/90">{potdReason}</p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <p className="text-sm text-slate-400">Tasks today (added by you)</p>
-                <p className="mt-1 text-lg font-semibold text-white">
-                  {taskRemaining} remaining <span className="text-slate-400">/ {todayBucket.length}</span>
-                </p>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="text-xs text-slate-400">Resets at 5:30 AM IST</div>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {todayBucket.slice(0, 10).map((q) => {
-                    const key = `task:${q._id}`;
-                    const checked = Boolean(checkedByKey[key]);
-                    return (
-                      <div
-                        key={q._id}
-                        className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 ring-1 ring-white/10"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 accent-emerald-400"
-                            checked={checked}
-                            onChange={(e) => setChecked(key, e.target.checked)}
-                            aria-label="Mark considered"
-                          />
-                          <div className="min-w-0">
-                            <p className={'truncate text-sm ' + (checked ? 'text-slate-400 line-through' : 'text-slate-100')}>
-                              {q.title}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-400">
-                              {q.source}:{q.ref}
-                            </p>
-                          </div>
-                        </div>
-
-                        <a
-                          href={q.link || (q.source === 'leetcode' ? `https://leetcode.com/problems/${q.ref}/` : '#')}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="shrink-0 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
-                        >
-                          Open
-                        </a>
-                      </div>
-                    );
-                  })}
-
-                  {!todayBucket.length ? <p className="text-sm text-slate-300">No tasks added for today.</p> : null}
-                </div>
+        {!loading && (
+          <div className="flex gap-4">
+            <div className={`flex items-center gap-3 rounded-2xl border bg-white/5 px-5 py-3 transition-all ${potdSolved ? 'border-emerald-500/30 text-emerald-400' : 'border-white/10 text-slate-400'}`}>
+              <Trophy className={`h-5 w-5 ${potdSolved ? 'fill-emerald-400/20' : ''}`} />
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest opacity-50">POTD Status</div>
+                <div className="text-sm font-bold">{potdSolved ? 'Completed' : 'Pending'}</div>
               </div>
             </div>
-
-            {/* To-do list half */}
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="text-sm text-slate-400">To-do list</p>
-                    <p className="mt-1 text-lg font-semibold text-white">Plan tasks by date</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300">Date</label>
-                    <input
-                      type="date"
-                      value={selectedDateKey}
-                      onChange={(e) => setSelectedDateKey(e.target.value)}
-                      className="mt-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-slate-100"
-                    />
-                    <p className="mt-1 text-[11px] text-slate-400">Resets at 12:00 AM IST</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={todoText}
-                    onChange={(e) => setTodoText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') addTodo();
-                    }}
-                    placeholder="Add a task…"
-                    className="w-full flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
-                  />
-                  <button
-                    type="button"
-                    onClick={addTodo}
-                    className="rounded-xl bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {todos.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 ring-1 ring-white/10"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-emerald-400"
-                          checked={Boolean(t.done)}
-                          onChange={(e) => toggleTodo(t.id, e.target.checked)}
-                          aria-label="Mark done"
-                        />
-                        <div className="min-w-0">
-                          <p className={'truncate text-sm ' + (t.done ? 'text-slate-400 line-through' : 'text-slate-100')}>
-                            {t.text}
-                          </p>
-                          {t.originDateKey && t.originDateKey !== selectedDateKey ? (
-                            <p className="mt-0.5 text-[11px] text-slate-400">From: {formatKeyDMY(t.originDateKey)}</p>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {!t.done ? (
-                        <button
-                          type="button"
-                          onClick={() => deleteTodo(t.id)}
-                          className="shrink-0 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-rose-200 ring-1 ring-white/10 hover:bg-white/10"
-                        >
-                          Delete
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
-
-                  {!todos.length ? <p className="text-sm text-slate-300">No tasks for this date.</p> : null}
-                </div>
+            
+            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-slate-400">
+              <LayoutGrid className="h-5 w-5" />
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest opacity-50">Revision Progress</div>
+                <div className="text-sm font-bold text-white">{todayCheckedCount} / {todayBucket.length}</div>
               </div>
             </div>
           </div>
-        </>
+        )}
+      </div>
+
+      {error ? (
+        <div className="mb-8 flex items-center gap-4 rounded-[2rem] border border-rose-500/20 bg-rose-500/10 p-6 text-rose-400">
+            <AlertCircle className="h-6 w-6 shrink-0" />
+            <p className="font-bold">{error}</p>
+        </div>
+      ) : null}
+
+      {!isAuthed && !loading && (
+          <div className="mb-8 flex items-center gap-4 rounded-[2rem] border border-amber-500/20 bg-amber-500/10 p-6 text-amber-400">
+              <AlertCircle className="h-6 w-6 shrink-0" />
+              <p className="font-bold">You're not logged in, so this is showing global demo data. Log in to see your personal tasks.</p>
+          </div>
       )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="lg:col-span-7 space-y-10">
+          <section>
+            <div className="flex items-center gap-3 mb-6 px-2">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                <Flame className="h-5 w-5 fill-amber-500/20" />
+              </div>
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white">Daily Challenge</h2>
+            </div>
+
+            {loading ? (
+              <div className="h-48 rounded-[2.5rem] bg-white/5 border border-white/5 animate-pulse flex items-center justify-center">
+                <div className="h-8 w-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+              </div>
+            ) : (
+              <div className="group relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#1C1C2E]/40 p-8 transition-all hover:bg-[#1C1C2E] hover:border-amber-500/30">
+                {/* Glass Reflection Effect */}
+                <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] z-20"></div>
+                
+                <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                    <Trophy className="h-32 w-32 text-white" />
+                </div>
+                
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`rounded-full border px-3 py-0.5 text-[10px] font-black uppercase tracking-widest ${potdDiff.badge}`}>
+                        {potdDiff.label}
+                      </span>
+                      {potdSolved && (
+                        <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                           <CheckCircle2 className="h-3 w-3" /> Solved
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-2xl font-black text-white leading-tight mb-2 group-hover:text-amber-500 transition-colors italic">
+                       {potdTitle}
+                    </h3>
+                    <p className="text-sm text-slate-400 font-medium italic">LeetCode Problem of the Day</p>
+                  </div>
+
+                  <a
+                    href={potdLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 inline-flex items-center gap-3 rounded-2xl bg-amber-500 px-8 py-4 text-sm font-black uppercase tracking-widest text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 hover:scale-[1.02] active:scale-[0.98] italic"
+                  >
+                    Initiate Challenge
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="flex items-center gap-3 mb-6 px-2">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                <Clock className="h-5 w-5" />
+              </div>
+              <h2 className="text-sm font-black uppercase tracking-[0.2em] text-amber-500">Revision Queue</h2>
+            </div>
+
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-24 rounded-[2rem] bg-white/5 border border-white/5 animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {todayBucket.length > 0 ? (
+                  todayBucket.map((q) => {
+                    const isChecked = !!checkedByKey[`task:${q._id}`];
+                    const meta = difficultyMeta(q.difficulty);
+                    return (
+                      <div
+                        key={q._id}
+                        onClick={() => setChecked(`task:${q._id}`, !isChecked)}
+                        className={`group cursor-pointer relative overflow-hidden flex items-center justify-between gap-6 rounded-[2rem] border p-6 transition-all duration-500 ${
+                          isChecked 
+                            ? 'bg-emerald-500/5 border-emerald-500/20' 
+                            : 'bg-[#1C1C2E]/40 border-white/5 hover:border-white/20 hover:bg-[#1C1C2E]'
+                        }`}
+                      >
+                        {/* Glass Reflection Effect */}
+                        <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg]"></div>
+                        
+                        <div className="relative z-10 flex items-center gap-5 min-w-0">
+                          <div className={`shrink-0 rounded-xl p-3 transition-colors ${isChecked ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-slate-500'}`}>
+                            {isChecked ? <CheckCircle2 className="h-6 w-6" /> : <Circle className="h-6 w-6" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${meta.label.toLowerCase() === 'easy' ? 'text-emerald-400' : meta.label.toLowerCase() === 'medium' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                    {meta.label}
+                                </span>
+                                <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{q.category || 'DSA'}</span>
+                            </div>
+                            <h4 className={`truncate text-lg font-bold leading-tight transition-all ${isChecked ? 'text-slate-500 line-through' : 'text-slate-100 group-hover:text-white'}`}>
+                              {q.title || q.ref}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <Link
+                          to="/revision"
+                          onClick={(e) => e.stopPropagation()}
+                          className="shrink-0 flex items-center justify-center p-3 rounded-xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all border border-transparent hover:border-white/10"
+                        >
+                          <ChevronRight className="h-5 w-5" />
+                        </Link>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
+                    <CheckCircle2 className="h-12 w-12 text-emerald-500/20 mx-auto mb-4" />
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No revisions due for today!</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="lg:col-span-5">
+            <section className="sticky top-24">
+                <div className="flex items-center justify-between mb-6 px-2">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            <Calendar className="h-5 w-5" />
+                        </div>
+                        <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white">Priority Tasks</h2>
+                    </div>
+                </div>
+
+                <div className="rounded-[2.5rem] border border-white/10 bg-[#05070a] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
+                    <div className="bg-white/5 border-b border-white/5 p-6">
+                        <div className="flex items-center justify-between gap-4 mb-4">
+                            <button 
+                                onClick={() => setSelectedDateKey(addUtcDaysToKey(selectedDateKey, -1))}
+                                className="p-2 rounded-xl hover:bg-white/5 text-slate-400 transition-colors"
+                            >
+                                <ChevronLeft className="h-5 w-5" />
+                            </button>
+                            <div className="text-center">
+                                <span className={`text-xs font-black uppercase tracking-widest ${selectedDateKey === todoDayKey ? 'text-indigo-400' : 'text-slate-500'}`}>
+                                    {selectedDateKey === todoDayKey ? 'Today’s Tasks' : formatKeyDMY(selectedDateKey)}
+                                </span>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedDateKey(addUtcDaysToKey(selectedDateKey, 1))}
+                                className="p-2 rounded-xl hover:bg-white/5 text-slate-400 transition-colors"
+                            >
+                                <ChevronRight className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="relative group/input">
+                            <input
+                                placeholder="Add a key focus for today..."
+                                value={todoText}
+                                onChange={(e) => setTodoText(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && addTodo()}
+                                className="w-full rounded-2xl border border-white/5 bg-[#050506] py-4 pl-5 pr-14 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all shadow-inner"
+                            />
+                            <button
+                                onClick={addTodo}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-xl bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-600 transition-all scale-90 group-focus-within/input:scale-100"
+                            >
+                                <Plus className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-6 space-y-3">
+                        {todos.length > 0 ? (
+                            todos.map((t) => (
+                                <div
+                                    key={t.id}
+                                    className={`group flex items-start gap-4 rounded-2xl border p-4 transition-all duration-300 ${
+                                        t.done 
+                                            ? 'bg-emerald-500/5 border-emerald-500/10 opacity-60' 
+                                            : 'bg-white/5 border-white/5 hover:border-white/10'
+                                    }`}
+                                >
+                                    <button
+                                        onClick={() => toggleTodo(t.id, !t.done)}
+                                        className={`mt-0.5 shrink-0 rounded-lg p-1 transition-colors ${t.done ? 'text-emerald-400' : 'text-slate-500 hover:text-white'}`}
+                                    >
+                                        {t.done ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+                                    </button>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`text-sm font-medium leading-relaxed transition-all ${t.done ? 'text-slate-400 line-through' : 'text-slate-200'}`}>
+                                            {t.text}
+                                        </p>
+                                        {t.originDateKey && t.originDateKey !== selectedDateKey && (
+                                            <span className="inline-block mt-2 text-[10px] font-black uppercase tracking-[0.1em] text-amber-500/60 transition-colors">
+                                                Carried from {formatKeyDMY(t.originDateKey)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => deleteTodo(t.id)}
+                                        className="shrink-0 p-1 rounded-lg text-slate-500 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="py-12 text-center">
+                                <p className="text-xs font-black uppercase tracking-widest text-slate-600">No priority tasks found</p>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="bg-white/5 border-t border-white/5 p-4 text-center">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Unfinished tasks auto-carry to next day</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+      </div>
+    </div>
     </div>
   );
 }

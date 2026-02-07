@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiGet } from '../lib/api';
 import questionsCss from '../legacy/questions.css?raw';
@@ -26,7 +26,8 @@ export default function QuestionsCatalog() {
   const [searchParams] = useSearchParams();
   const { isLoggedIn } = useAuth();
 
-  useLegacyStyle('questions', questionsCss);
+  // Removed legacy style to use premium dark mode Tailwind UI
+  // useLegacyStyle('questions', questionsCss);
 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('leetcode'); // leetcode | your
@@ -38,6 +39,25 @@ export default function QuestionsCatalog() {
   const [sort, setSort] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Dropdown States
+  const [isTopicDropdownOpen, setIsTopicDropdownOpen] = useState(false);
+  const [isDifficultyDropdownOpen, setIsDifficultyDropdownOpen] = useState(false);
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  
+  const topicRef = useRef(null);
+  const difficultyRef = useRef(null);
+  const sortRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (topicRef.current && !topicRef.current.contains(event.target)) setIsTopicDropdownOpen(false);
+      if (difficultyRef.current && !difficultyRef.current.contains(event.target)) setIsDifficultyDropdownOpen(false);
+      if (sortRef.current && !sortRef.current.contains(event.target)) setIsSortDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const [leetcodeItems, setLeetcodeItems] = useState([]);
   const [leetcodeTotal, setLeetcodeTotal] = useState(0);
@@ -322,178 +342,361 @@ export default function QuestionsCatalog() {
   }, [selectedItem]);
 
   return (
-    <div className="legacy-questions-root">
-      <div className="container">
-      <div className="content-tabs">
-        <button
-          className={`content-tab ${activeTab === 'leetcode' ? 'active' : ''}`}
-          type="button"
-          onClick={() => {
-            setActiveTab('leetcode');
-            setSelectedItem(null);
-          }}
-        >
-          <i className="fas fa-code"></i> LeetCode
-        </button>
-        <button
-          className={`content-tab ${activeTab === 'your' ? 'active' : ''}`}
-          type="button"
-          onClick={() => {
-            setActiveTab('your');
-            setSelectedItem(null);
-          }}
-        >
-          <i className="fas fa-book"></i> Your Questions
-        </button>
-      </div>
+    <div className="flex flex-col min-h-screen p-4 sm:p-8">
+      <div className="max-w-[1400px] mx-auto flex-1">
+        {/* Modern Tabs Header */}
+        <div className="flex justify-center mb-8">
+          <div className="bg-[#1C1C2E] p-1.5 rounded-2xl flex gap-1 shadow-lg">
+            <button
+              onClick={() => {
+                setActiveTab('leetcode');
+                setSelectedItem(null);
+              }}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === 'leetcode'
+                  ? 'bg-amber-500 text-black shadow-md'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <i className={`fas fa-code ${activeTab === 'leetcode' ? 'text-black' : 'text-amber-500'}`}></i>
+              LeetCode
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('your');
+                setSelectedItem(null);
+              }}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === 'your'
+                  ? 'bg-amber-500 text-black shadow-md'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <i className={`fas fa-book ${activeTab === 'your' ? 'text-black' : 'text-amber-500'}`}></i>
+              Your Questions
+            </button>
+          </div>
+        </div>
 
-      <div className="content-section active">
-        <div className="controls">
-          <div className="search-filters">
-            <div className="filter-group">
-              <i className="fas fa-search"></i>
-              <input
-                type="text"
-                className="filter-input"
-                placeholder="Search questions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+        {/* Search & Filters Bar */}
+        <div className="bg-[#1C1C2E]/50 border border-white/5 p-4 rounded-2xl mb-8 flex flex-wrap items-center gap-4 shadow-xl backdrop-blur-sm relative z-30">
+          <div className="flex-1 min-w-[240px] relative">
+            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+            <input
+              type="text"
+              placeholder="Search questions..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-[#0A0A0B] border border-white/10 rounded-full py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all font-bold placeholder:font-normal"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <style>{`
+              .custom-dropdown-option { 
+                padding: 10px 16px; 
+                margin: 2px 8px;
+                border-radius: 12px;
+                cursor: pointer; 
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                color: rgba(255,255,255,0.6) !important;
+                font-size: 13px;
+                white-space: nowrap;
+                position: relative;
+              }
+              .custom-dropdown-option:hover { 
+                background: rgba(255, 255, 255, 0.08); 
+                color: white !important;
+              }
+              .custom-dropdown-option.selected {
+                background: rgba(245, 158, 11, 0.2);
+                color: white !important;
+                font-weight: 600;
+              }
+              .custom-dropdown-container {
+                position: absolute;
+                top: 100%;
+                left: -1px;
+                width: calc(100% + 2px);
+                background: #0d0e14;
+                border: 1px solid #f59e0b;
+                border-top: none;
+                border-radius: 0 0 1.5rem 1.5rem;
+                overflow: hidden;
+                z-index: 1000;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+                backdrop-filter: blur(25px);
+                animation: dropdownFadeIn 0.2s ease-out;
+                padding: 6px 0;
+              }
+              @keyframes dropdownFadeIn {
+                from { opacity: 0; transform: translateY(-5px); }
+                to { opacity: 1; transform: translateY(0); }
+              }
+              .custom-scrollbar::-webkit-scrollbar {
+                width: 4px;
+              }
+              .custom-scrollbar::-webkit-scrollbar-track {
+                background: transparent;
+              }
+              .custom-scrollbar::-webkit-scrollbar-thumb {
+                background: rgba(255,255,255,0.1);
+                border-radius: 10px;
+              }
+              .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: rgba(255,255,255,0.2);
+              }
+            `}</style>
+
+            {/* Topic Dropdown */}
+            <div className="relative" ref={topicRef} style={{ minWidth: '170px' }}>
+              <div 
+                onClick={() => setIsTopicDropdownOpen(!isTopicDropdownOpen)}
+                className={`bg-[#0A0A0B] border border-white/10 px-5 py-2.5 text-sm cursor-pointer flex items-center justify-between gap-3 transition-all duration-200 ${isTopicDropdownOpen ? 'rounded-t-[1.5rem] rounded-b-none border-amber-500 ring-1 ring-amber-500/30' : 'rounded-full hover:border-white/20'}`}
+              >
+                <span className="truncate text-white font-medium">
+                  {activeTab === 'your' 
+                    ? (yourSelectedTopic || (yourTopics.length ? yourTopics[0] : 'No topic'))
+                    : (topics.find(t => t.key === selectedTopicKey)?.name || 'Default Topic')}
+                </span>
+                <i className={`fas fa-chevron-down text-[10px] transition-transform duration-300 ${isTopicDropdownOpen ? 'rotate-180' : ''}`} style={{ color: isTopicDropdownOpen ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}></i>
+              </div>
+              
+              {isTopicDropdownOpen && (
+                <div className="custom-dropdown-container">
+                  <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                    {activeTab === 'your' ? (
+                      yourTopics.length ? (
+                        yourTopics.map((name) => (
+                          <div 
+                            key={name}
+                            className={`custom-dropdown-option ${yourSelectedTopic === name ? 'selected' : ''}`}
+                            onClick={() => { setYourSelectedTopic(name); setIsTopicDropdownOpen(false); }}
+                          >
+                            {name}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="custom-dropdown-option">No topics</div>
+                      )
+                    ) : (
+                      topics.map((t) => (
+                        <div 
+                          key={t.key}
+                          className={`custom-dropdown-option ${selectedTopicKey === t.key ? 'selected' : ''}`}
+                          onClick={() => { setSelectedTopicKey(t.key); setIsTopicDropdownOpen(false); }}
+                        >
+                          {t.name}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {activeTab === 'your' ? (
-              <select
-                className="filter-select"
-                value={yourSelectedTopic}
-                onChange={(e) => setYourSelectedTopic(e.target.value)}
+            {/* Difficulty Dropdown */}
+            <div className="relative" ref={difficultyRef} style={{ minWidth: '150px' }}>
+              <div 
+                onClick={() => setIsDifficultyDropdownOpen(!isDifficultyDropdownOpen)}
+                className={`bg-[#0A0A0B] border border-white/10 px-5 py-2.5 text-sm cursor-pointer flex items-center justify-between gap-3 transition-all duration-200 ${isDifficultyDropdownOpen ? 'rounded-t-[1.5rem] rounded-b-none border-amber-500 ring-1 ring-amber-500/30' : 'rounded-full hover:border-white/20'}`}
               >
-                {yourTopics.length ? (
-                  yourTopics.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">No topics</option>
+                <span className="font-medium text-white">
+                  {difficulty || 'Difficulty'}
+                </span>
+                <i className={`fas fa-chevron-down text-[10px] transition-transform duration-300 ${isDifficultyDropdownOpen ? 'rotate-180' : ''}`} style={{ color: isDifficultyDropdownOpen ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}></i>
+              </div>
+              
+              {isDifficultyDropdownOpen && (
+                <div className="custom-dropdown-container">
+                  <div 
+                    className={`custom-dropdown-option ${difficulty === '' ? 'selected' : ''}`}
+                    onClick={() => { setDifficulty(''); setIsDifficultyDropdownOpen(false); }}
+                  >
+                    All Difficulties
+                  </div>
+                  <div 
+                    className={`custom-dropdown-option ${difficulty === 'Easy' ? 'selected' : ''}`}
+                    onClick={() => { setDifficulty('Easy'); setIsDifficultyDropdownOpen(false); }}
+                  >
+                    Easy
+                  </div>
+                  <div 
+                    className={`custom-dropdown-option ${difficulty === 'Medium' ? 'selected' : ''}`}
+                    onClick={() => { setDifficulty('Medium'); setIsDifficultyDropdownOpen(false); }}
+                  >
+                    Medium
+                  </div>
+                  <div 
+                    className={`custom-dropdown-option ${difficulty === 'Hard' ? 'selected' : ''}`}
+                    onClick={() => { setDifficulty('Hard'); setIsDifficultyDropdownOpen(false); }}
+                  >
+                    Hard
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sort Dropdown (only leetcode tab) */}
+            {activeTab === 'leetcode' && (
+              <div className="relative" ref={sortRef} style={{ minWidth: '160px' }}>
+                <div 
+                  onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
+                  className={`bg-[#0A0A0B] border border-white/10 px-5 py-2.5 text-sm cursor-pointer flex items-center justify-between gap-3 transition-all duration-200 ${isSortDropdownOpen ? 'rounded-t-[1.5rem] rounded-b-none border-amber-500 ring-1 ring-amber-500/30' : 'rounded-full hover:border-white/20'}`}
+                >
+                  <span className="font-medium text-white">
+                    {sort === 'ac_desc' ? 'AC: High → Low' : sort === 'ac_asc' ? 'AC: Low → High' : 'Sort By'}
+                  </span>
+                  <i className={`fas fa-chevron-down text-[10px] transition-transform duration-300 ${isSortDropdownOpen ? 'rotate-180' : ''}`} style={{ color: isSortDropdownOpen ? '#f59e0b' : 'rgba(255,255,255,0.3)' }}></i>
+                </div>
+                
+                {isSortDropdownOpen && (
+                  <div className="custom-dropdown-container">
+                    <div 
+                      className={`custom-dropdown-option ${sort === '' ? 'selected' : ''}`}
+                      onClick={() => { setSort(''); setIsSortDropdownOpen(false); }}
+                    >
+                      Default
+                    </div>
+                    <div 
+                      className={`custom-dropdown-option ${sort === 'ac_desc' ? 'selected' : ''}`}
+                      onClick={() => { setSort('ac_desc'); setIsSortDropdownOpen(false); }}
+                    >
+                      AC: High → Low
+                    </div>
+                    <div 
+                      className={`custom-dropdown-option ${sort === 'ac_asc' ? 'selected' : ''}`}
+                      onClick={() => { setSort('ac_asc'); setIsSortDropdownOpen(false); }}
+                    >
+                      AC: Low → High
+                    </div>
+                  </div>
                 )}
-              </select>
-            ) : (
-              <select className="filter-select" value={selectedTopicKey} onChange={(e) => setSelectedTopicKey(e.target.value)}>
-                {topics.map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              </div>
             )}
 
-            <select className="filter-select" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
-              <option value="">All Difficulties</option>
-              <option value="Easy">Easy</option>
-              <option value="Medium">Medium</option>
-              <option value="Hard">Hard</option>
-            </select>
-
-            {activeTab === 'leetcode' ? (
-              <select className="filter-select" value={sort} onChange={(e) => setSort(e.target.value)}>
-                <option value="">Default</option>
-                <option value="ac_desc">Acceptance: High → Low</option>
-                <option value="ac_asc">Acceptance: Low → High</option>
-              </select>
-            ) : null}
-
-            {isLoggedIn ? (
-              <Link to="/add" className="add-question-btn" style={{ textDecoration: 'none' }}>
+            {isLoggedIn && (
+              <Link 
+                to="/add" 
+                className="bg-amber-500 hover:bg-amber-400 text-black px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95"
+              >
                 <i className="fas fa-plus"></i> Add Question
               </Link>
-            ) : null}
+            )}
           </div>
         </div>
 
         {loading ? (
-          <div className="loading">
-            <i className="fas fa-spinner fa-spin"></i>
-            Loading...
+          <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-60">
+            <i className="fas fa-spinner fa-spin text-3xl text-amber-500"></i>
+            <p className="text-sm font-medium">Loading questions...</p>
           </div>
         ) : (
           <>
-            <div className="questions-grid">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {resolvedViewItems.map((q) => (
                 <div
                   key={`${q.__source}-${q.slug}`}
-                  className="question-card"
-                  role="button"
-                  tabIndex={0}
                   onClick={() => setSelectedItem(q)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') setSelectedItem(q);
-                  }}
+                  className="group relative bg-[#1C1C2E]/40 border border-white/5 rounded-[2rem] p-7 transition-all duration-500 hover:bg-[#1C1C2E] hover:border-amber-500/50 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)] flex flex-col justify-between cursor-pointer overflow-hidden"
+                  style={{ height: '320px' }}
                 >
-                  <div className="question-header">
-                    <div className="question-title">{q.title}</div>
-                    <span className={`difficulty-badge difficulty-${q.difficulty}`}>{q.difficulty}</span>
+                  {/* Glass Reflection Effect */}
+                  <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] z-20"></div>
+
+                  {/* Premium Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                  <div className="relative z-10 font-sans">
+                    <div className="flex justify-between items-start gap-3 mb-5">
+                      <h3 className="text-xl font-bold text-white/90 leading-[1.3] group-hover:text-amber-500 transition-colors line-clamp-2 italic">
+                        {q.title}
+                      </h3>
+                      <span 
+                        className={`shrink-0 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg ${
+                          q.difficulty === 'Easy' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                          q.difficulty === 'Medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                          'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        }`}
+                      >
+                        {q.difficulty}
+                      </span>
+                    </div>
+
+                    {/* Metadata Pill Row */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-[11px] text-slate-300 font-bold flex items-center gap-2 italic">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        {q.__source}
+                      </div>
+                      {q.__source === 'LeetCode' && formatAcceptanceRate(q.acceptanceRate) && (
+                        <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-[11px] text-slate-300 font-bold flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                          AC: {formatAcceptanceRate(q.acceptanceRate)}
+                        </div>
+                      )}
+                      {q.topic && (
+                        <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-[11px] text-amber-500 font-bold flex items-center gap-2 italic uppercase">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          {q.topic}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tag Badges */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.isArray(q.tags) && q.tags.slice(0, 3).map((t) => (
+                        <span key={t.slug} className="bg-white/5 border border-white/5 px-2.5 py-1 rounded-lg text-[10px] text-slate-500 font-bold hover:text-slate-300 transition-colors">
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="tags-container">
-                    <span className="tag">{q.__source}</span>
-                    {q.__source === 'LeetCode' && formatAcceptanceRate(q.acceptanceRate) ? (
-                      <span className="tag">AC: {formatAcceptanceRate(q.acceptanceRate)}</span>
-                    ) : null}
-                    {activeTab === 'your' && q.topic ? <span className="tag">{q.topic}</span> : null}
-                    {activeTab === 'your' && q.status ? <span className="tag">{q.status}</span> : null}
-                    {Array.isArray(q.tags) && q.tags.length
-                      ? q.tags.slice(0, 3).map((t) => (
-                          <span key={t.slug} className="tag">
-                            {t.name}
-                          </span>
-                        ))
-                      : null}
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
+                  <div className="relative z-10 w-full">
                     <a
-                      className="add-question-btn"
                       href={q.link || `https://leetcode.com/problems/${q.slug}/`}
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      style={{ textDecoration: 'none' }}
+                      className="w-full bg-amber-500 hover:bg-amber-400 text-black py-4 rounded-2xl text-[13px] font-black tracking-widest transition-all flex items-center justify-center gap-3 shadow-2xl shadow-amber-500/20 active:scale-95 group-hover:shadow-amber-500/40 transform hover:-translate-y-0.5"
                     >
-                      <i className="fas fa-external-link-alt"></i> Open
+                      <i className="fas fa-play text-[10px]"></i>
+                      OPEN PROBLEM
                     </a>
                   </div>
                 </div>
               ))}
 
-              {!resolvedViewItems.length ? (
-                <div className="empty-state">
-                  <i className="fas fa-inbox"></i>
-                  <p>No questions found</p>
+              {!resolvedViewItems.length && (
+                <div className="col-span-full py-20 flex flex-col items-center justify-center opacity-40 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                  <i className="fas fa-inbox text-5xl mb-4"></i>
+                  <p className="text-lg font-medium">No questions found</p>
                 </div>
-              ) : null}
+              )}
             </div>
 
-            {activeTab === 'leetcode' && leetcodeHasMore ? (
-              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
+            {activeTab === 'leetcode' && leetcodeHasMore && (
+              <div className="mt-12 flex justify-center">
                 <button
-                  className="add-question-btn"
                   type="button"
                   onClick={async () => {
                     setShowOverlay(true);
-                    try {
-                      await loadLeetCode({ reset: false });
-                    } finally {
-                      setShowOverlay(false);
-                    }
+                    try { await loadLeetCode({ reset: false }); } 
+                    finally { setShowOverlay(false); }
                   }}
+                  className="bg-amber-500 hover:bg-amber-400 text-black px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-xl shadow-amber-500/20 active:scale-95 flex items-center gap-3"
                 >
-                  Load more
+                  <i className="fas fa-plus-circle text-sm"></i> Load More Questions
                 </button>
               </div>
-            ) : null}
+            )}
 
-            <div style={{ marginTop: 12, textAlign: 'center', opacity: 0.8 }}>
-              Showing {resolvedViewItems.length} of {resolvedViewTotal || resolvedViewItems.length}
+            <div className="mt-10 py-4 border-t border-white/5 text-center text-xs text-slate-500 font-medium uppercase tracking-widest">
+              Showing {resolvedViewItems.length} of {resolvedViewTotal || resolvedViewItems.length} questions
             </div>
           </>
         )}
@@ -633,19 +836,27 @@ export default function QuestionsCatalog() {
         </div>
       ) : null}
 
-      {notifications.map((n) => (
-        <div key={n.id} className={`notification ${n.type}`}>
-          <i className={`fas ${n.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
-          <span>{n.message}</span>
-        </div>
-      ))}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3">
+        {notifications.map((n) => (
+          <div 
+            key={n.id} 
+            className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-xl animate-in fade-in slide-in-from-right-10 duration-300 ${
+              n.type === 'success' 
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            }`}
+          >
+            <i className={`fas ${n.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+            <span className="text-sm font-semibold">{n.message}</span>
+          </div>
+        ))}
+      </div>
 
       {loading || showOverlay ? (
-        <div className="loading-overlay" style={{ display: 'flex' }}>
-          <div className="loading-spinner"></div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div>
         </div>
       ) : null}
-      </div>
     </div>
   );
 }

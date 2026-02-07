@@ -12,6 +12,7 @@ const catalogRoutes = require('./backend/src/routes/catalog');
 const revisionRoutes = require('./backend/src/routes/revision');
 const solvedRoutes = require('./backend/src/routes/solved');
 const aiRoutes = require('./backend/src/routes/ai');
+const feedbackRoutes = require('./backend/src/routes/feedback');
 
 const { requireAuth } = require('./backend/src/middleware/requireAuth');
 const User = require('./backend/src/models/User');
@@ -160,6 +161,7 @@ app.use('/api/catalog', catalogRoutes);
 app.use('/api/revision', revisionRoutes);
 app.use('/api/solved', solvedRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check (useful to debug Mongo connectivity)
 app.get('/api/health', (req, res) => {
