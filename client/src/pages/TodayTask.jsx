@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { apiGet } from '../lib/api.js';
@@ -17,6 +17,48 @@ function utcDateKey(date = new Date()) {
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const day = String(d.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function istDateKey(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (!Number.isFinite(d.getTime())) return '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(d);
+    const map = Object.create(null);
+    for (const p of parts) {
+      if (p.type !== 'literal') map[p.type] = p.value;
+    }
+    const y = map.year;
+    const m = map.month;
+    const day = map.day;
+    return y && m && day ? `${y}-${m}-${day}` : '';
+  } catch {
+    return '';
+  }
+}
+
+function isUtcDateKey(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
+function addUtcDaysToKey(dayKey, deltaDays) {
+  if (!isUtcDateKey(dayKey)) return '';
+  const [y, m, d] = String(dayKey).split('-').map((x) => Number(x));
+  const baseMs = Date.UTC(y, m - 1, d);
+  if (!Number.isFinite(baseMs)) return '';
+  const next = new Date(baseMs + (Number(deltaDays) || 0) * 24 * 60 * 60 * 1000);
+  return utcDateKey(next);
+}
+
+function formatKeyDMY(dayKey) {
+  if (!isUtcDateKey(dayKey)) return '';
+  const [y, m, d] = String(dayKey).split('-');
+  return `${d}-${m}-${y}`;
 }
 
 function readCheckedMap(dayKey) {
@@ -55,22 +97,92 @@ export default function TodayTask() {
   const [dayKey, setDayKey] = useState(() => utcDateKey(new Date()));
   const [checkedByKey, setCheckedByKey] = useState(() => readCheckedMap(utcDateKey(new Date())));
 
-  const [selectedDateKey, setSelectedDateKey] = useState(() => utcDateKey(new Date()));
+  const [todoDayKey, setTodoDayKey] = useState(() => istDateKey(new Date()));
+  const [selectedDateKey, setSelectedDateKey] = useState(() => istDateKey(new Date()));
   const [todoText, setTodoText] = useState('');
   const [todos, setTodos] = useState([]); // [{ id, text, done }]
 
+  const todoDayKeyRef = useRef(todoDayKey);
+
+  useEffect(() => {
+    todoDayKeyRef.current = todoDayKey;
+  }, [todoDayKey]);
+
   useEffect(() => {
     const t = setInterval(() => {
-      const next = utcDateKey(new Date());
-      setDayKey((prev) => (prev === next ? prev : next));
+      const now = new Date();
+      const nextUtc = utcDateKey(now);
+      const nextIst = istDateKey(now);
+      setDayKey((prev) => (prev === nextUtc ? prev : nextUtc));
+      setTodoDayKey((prev) => (prev === nextIst ? prev : nextIst));
     }, 30 * 1000);
     return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
-    // Default selectors to "today" if empty.
-    setSelectedDateKey((prev) => (prev ? prev : dayKey));
-  }, [dayKey]);
+    // Default selectors to "today" if empty, and on reset move unfinished
+    // todos from yesterday into today.
+    if (typeof window === 'undefined') {
+      setSelectedDateKey((prev) => (prev ? prev : todoDayKey));
+      return;
+    }
+
+    const ROLLOVER_TO_KEY = 'dsaTracker.todo.rollover.lastToDayKey';
+    const alreadyRolledTo = window.localStorage.getItem(ROLLOVER_TO_KEY) || '';
+
+    const prevTodoDayKey = todoDayKeyRef.current;
+    const shouldAutoAdvance =
+      !selectedDateKey || (prevTodoDayKey && selectedDateKey === prevTodoDayKey && prevTodoDayKey !== todoDayKey);
+    if (shouldAutoAdvance) setSelectedDateKey(todoDayKey);
+
+    // Only rollover once per destination day.
+    if (alreadyRolledTo === todoDayKey) return;
+
+    const fromKey = addUtcDaysToKey(todoDayKey, -1);
+    if (!fromKey || fromKey === todoDayKey) {
+      window.localStorage.setItem(ROLLOVER_TO_KEY, todoDayKey);
+      return;
+    }
+
+    try {
+      const fromTodosRaw = window.localStorage.getItem(`dsaTracker.todo.list.${fromKey}`);
+      const fromTodos = fromTodosRaw ? JSON.parse(fromTodosRaw) : null;
+      const fromList = Array.isArray(fromTodos) ? fromTodos : [];
+
+      const carry = fromList
+        .filter((t) => t && t.done !== true)
+        .map((t) => ({
+          ...t,
+          originDateKey: isUtcDateKey(t?.originDateKey) ? t.originDateKey : fromKey,
+        }));
+
+      if (carry.length) {
+        const toTodosRaw = window.localStorage.getItem(`dsaTracker.todo.list.${todoDayKey}`);
+        const toTodos = toTodosRaw ? JSON.parse(toTodosRaw) : null;
+        const current = Array.isArray(toTodos) ? toTodos : [];
+
+        const existingIds = new Set(current.map((t) => String(t?.id || '')).filter(Boolean));
+        const moved = carry.filter((t) => {
+          const id = String(t?.id || '');
+          return id && !existingIds.has(id);
+        });
+
+        const next = [...moved, ...current];
+        window.localStorage.setItem(`dsaTracker.todo.list.${todoDayKey}`, JSON.stringify(next));
+
+        // "Move": remove unfinished items from the previous day list.
+        const remainingFrom = fromList.filter((t) => t && Boolean(t.done) === true);
+        window.localStorage.setItem(`dsaTracker.todo.list.${fromKey}`, JSON.stringify(remainingFrom));
+
+        // If the UI is showing the destination day (or we auto-advanced to it), refresh state.
+        if (selectedDateKey === todoDayKey || shouldAutoAdvance) setTodos(next);
+      }
+
+      window.localStorage.setItem(ROLLOVER_TO_KEY, todoDayKey);
+    } catch {
+      // ignore
+    }
+  }, [todoDayKey, selectedDateKey]);
 
   useEffect(() => {
     setCheckedByKey(readCheckedMap(dayKey));
@@ -108,13 +220,12 @@ export default function TodayTask() {
 
   useEffect(() => {
     setTodos(readTodos(selectedDateKey));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDateKey]);
 
   function addTodo() {
     const text = String(todoText || '').trim();
     if (!text) return;
-    const item = { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, text, done: false };
+    const item = { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, text, done: false, originDateKey: '' };
     const next = [item, ...(Array.isArray(todos) ? todos : [])];
     setTodos(next);
     writeTodos(selectedDateKey, next);
@@ -229,11 +340,21 @@ export default function TodayTask() {
                     <p className="text-sm text-slate-400">POTD</p>
                     <p className="mt-1 text-lg font-semibold text-white">{potdTitle}</p>
                   </div>
-                  {potdDifficulty ? (
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1 ${potdDiff.badge}`}>
-                      {potdDiff.label}
-                    </span>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {potdDifficulty ? (
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1 ${potdDiff.badge}`}>
+                        {potdDiff.label}
+                      </span>
+                    ) : null}
+                    <a
+                      href={potdLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
+                    >
+                      Open
+                    </a>
+                  </div>
                 </div>
 
                 <div className="mt-4">
@@ -318,7 +439,7 @@ export default function TodayTask() {
                       onChange={(e) => setSelectedDateKey(e.target.value)}
                       className="mt-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-slate-100"
                     />
-                    <p className="mt-1 text-[11px] text-slate-400">Resets at 5:30 AM IST</p>
+                    <p className="mt-1 text-[11px] text-slate-400">Resets at 12:00 AM IST</p>
                   </div>
                 </div>
 
@@ -355,9 +476,14 @@ export default function TodayTask() {
                           onChange={(e) => toggleTodo(t.id, e.target.checked)}
                           aria-label="Mark done"
                         />
-                        <p className={'min-w-0 truncate text-sm ' + (t.done ? 'text-slate-400 line-through' : 'text-slate-100')}>
-                          {t.text}
-                        </p>
+                        <div className="min-w-0">
+                          <p className={'truncate text-sm ' + (t.done ? 'text-slate-400 line-through' : 'text-slate-100')}>
+                            {t.text}
+                          </p>
+                          {t.originDateKey && t.originDateKey !== selectedDateKey ? (
+                            <p className="mt-0.5 text-[11px] text-slate-400">From: {formatKeyDMY(t.originDateKey)}</p>
+                          ) : null}
+                        </div>
                       </div>
 
                       {!t.done ? (

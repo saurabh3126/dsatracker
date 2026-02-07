@@ -314,9 +314,39 @@ async function checkIfPotdSolved({ username, limit = 50 }) {
     return { potd, solved: false, reason: 'username missing' };
   }
 
+  function istDateKey(date) {
+    try {
+      // YYYY-MM-DD (stable and easy to compare)
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(date);
+    } catch {
+      // Fallback: use UTC date if Intl tz data isn't available.
+      const y = date.getUTCFullYear();
+      const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(date.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  const todayIstKey = istDateKey(new Date());
+
   const recent = await fetchRecentAcceptedSubmissions({ username, limit });
-  const solved = recent.some((s) => s?.titleSlug === slug);
-  return { potd, solved, reason: solved ? 'matched in recent AC submissions' : 'not found in recent AC submissions' };
+
+  // Only count POTD as solved if there is an AC submission for this slug *today (IST)*.
+  const solved = (recent || []).some((s) => {
+    if (s?.titleSlug !== slug) return false;
+    const ts = Number(s?.timestamp);
+    if (!Number.isFinite(ts) || ts <= 0) return false;
+    const submittedAt = new Date(ts * 1000);
+    return istDateKey(submittedAt) === todayIstKey;
+  });
+
+  // If not solved today, keep reason empty so UI doesn't show a confusing message.
+  return { potd, solved, reason: solved ? 'submitted today' : '' };
 }
 
 async function fetchProblemsetQuestions({ limit = 50, skip = 0, difficulty, tagSlugs = [], search = '' }) {

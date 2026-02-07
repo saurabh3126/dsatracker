@@ -26,20 +26,33 @@ function endOfUtcDay(value = new Date()) {
   return d;
 }
 
+function startOfUtcDayMs(value = new Date()) {
+  return startOfUtcDay(value).getTime();
+}
+
 function getUpcomingSunday(value = new Date()) {
-  const d = startOfDay(value);
-  const day = d.getDay(); // 0 = Sun
+  // Weekly reset boundary is Sunday 5:30 AM IST, which is Sunday 00:00 UTC.
+  // We store dueAt as the instant *just before* the boundary, i.e. end of the
+  // previous UTC day.
+  const now = new Date(value);
+  if (Number.isNaN(now.getTime())) throw new Error('Invalid date');
+
+  const baseMs = startOfUtcDayMs(now);
+  const base = new Date(baseMs);
+  const day = base.getUTCDay(); // 0 = Sun
   const daysUntilSunday = (7 - day) % 7;
-  d.setDate(d.getDate() + daysUntilSunday);
-  return endOfDay(d);
+
+  let sundayStartMs = baseMs + daysUntilSunday * 24 * 60 * 60 * 1000;
+  if (sundayStartMs <= now.getTime()) sundayStartMs += 7 * 24 * 60 * 60 * 1000;
+
+  return new Date(sundayStartMs - 1);
 }
 
 function getNextSunday(value = new Date()) {
-  const d = startOfDay(value);
-  const day = d.getDay(); // 0 = Sun
-  const daysUntilNextSunday = day === 0 ? 7 : 7 - day;
-  d.setDate(d.getDate() + daysUntilNextSunday);
-  return endOfDay(d);
+  const upcomingDueAt = getUpcomingSunday(value);
+  const upcomingStartMs = upcomingDueAt.getTime() + 1;
+  const nextStartMs = upcomingStartMs + 7 * 24 * 60 * 60 * 1000;
+  return new Date(nextStartMs - 1);
 }
 
 function getEndOfMonth(value = new Date()) {

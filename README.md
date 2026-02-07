@@ -38,7 +38,6 @@ Though a full-stack product, I implemented testing practices that align with rea
 
 - ✅ **Unit Testing**: Controllers for adding & updating questions (`Jest`).
 - 🔗 **API Integration Tests**: Using `Supertest` for endpoints like `/add-question`, `/get-questions`.
-- 🌐 **End-to-End Testing (E2E)**: Simulated user journey (register → login → add question → view progress) using `Cypress`.
 - 🛠️ **Dummy App Testing Setup**: Includes basic Express server mock + test scaffolding to show readiness for testing practices.
 - 🔄 **CI-ready structure** with test folders & scripts to plug into automated pipelines (e.g., GitHub Actions).
 
@@ -48,7 +47,7 @@ Though a full-stack product, I implemented testing practices that align with rea
 
 | Frontend | Backend           | Database | Testing                  |
 | -------- | ----------------- | -------- | ------------------------ |
-| React.js | Node.js + Express | MongoDB  | Jest, Supertest, Cypress |
+| React.js | Node.js + Express | MongoDB  | Jest, Supertest |
 
 ---
 

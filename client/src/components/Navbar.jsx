@@ -3,12 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Code2, Smile } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
-import {
-  CONTEST_SCHEDULE_TEXT,
-  formatContestStartsAtIST,
-  getNextContestIST,
-  isContestTomorrowIST,
-} from '../utils/contestSchedule.js';
+import { getNextContestIST, isContestTomorrowIST } from '../utils/contestSchedule.js';
 
 function endOfUtcDay(value = new Date()) {
   const d = new Date(value);
@@ -245,7 +240,7 @@ function UserMenu({ name, variant = 'desktop' }) {
                 }
                 onClick={() => setOpen(false)}
               >
-                Recently Solved
+                Solved
               </NavLink>
               <NavLink
                 to="/topics"
@@ -274,7 +269,7 @@ function UserMenu({ name, variant = 'desktop' }) {
             }
             onClick={() => setOpen(false)}
           >
-            Recently Solved
+            Solved
           </NavLink>
           <NavLink
             to="/logout"
@@ -325,18 +320,6 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    if (!isHomeRoute && homeReminderMode !== 'contest' && homeReminderMode !== 'week') {
-      setHomeReminderOpen(false);
-      setHomeReminderText('');
-      setHomeReminderCompletionPct(null);
-      setHomeReminderMode('summary');
-      setHasContestTomorrow(false);
-    }
-  }, [homeReminderMode, isHomeRoute]);
-
-  useEffect(() => {
-    if (!isHomeRoute) return;
-
     const now = new Date();
     const next = getNextContestIST(now);
     if (!next?.startsAtUtc) {
@@ -345,7 +328,7 @@ export default function Navbar() {
     }
 
     setHasContestTomorrow(isContestTomorrowIST(now, next.startsAtUtc));
-  }, [isHomeRoute]);
+  }, [nowTick]);
 
   function canShowHomeReminderNow() {
     if (typeof window === 'undefined') return true;
@@ -353,7 +336,8 @@ export default function Navbar() {
       const key = 'dsaTracker.homeReminder.lastShownAtMs';
       const last = Number(window.localStorage.getItem(key) || 0);
       const now = Date.now();
-      return !Number.isFinite(last) || now - last >= 60 * 60 * 1000;
+      // Show task reminder every 2 hours.
+      return !Number.isFinite(last) || now - last >= 2 * 60 * 60 * 1000;
     } catch {
       return true;
     }
@@ -527,12 +511,6 @@ export default function Navbar() {
         const revRes = await fetch('/api/revision/summary', { headers: authHeaders });
         const revJson = await revRes.json().catch(() => null);
 
-        let dueJson = null;
-        if (isHomeRoute) {
-          const dueRes = await fetch('/api/leetcode/my/due', { headers: authHeaders });
-          dueJson = await dueRes.json().catch(() => null);
-        }
-
         if (cancelled) return;
 
         const potd = potdJson?.potd;
@@ -567,16 +545,9 @@ export default function Navbar() {
           const countdown = formatContestCountdown(msRemaining);
           setHomeReminderMode('contest');
           setHomeReminderCompletionPct(null);
-          setHomeReminderText(`CONTEST COMING in ${countdown} BE PREPARED!! ALL THE BEST`);
+          setHomeReminderText(`CONTEST COMING !!!!\nTime left ${countdown}\nALL THE BEST 😊`);
           setHomeReminderOpen(true);
           markContestReminderShown(contestId, stage.key);
-          return;
-        }
-
-        if (!isHomeRoute) {
-          if (homeReminderMode !== 'contest' && homeReminderMode !== 'week') {
-            setHomeReminderMode('summary');
-          }
           return;
         }
 
@@ -591,10 +562,7 @@ export default function Navbar() {
         const totalTodayCount = todayBucket.length;
         const dueTodayPct = totalTodayCount ? dueTodayCount / totalTodayCount : 0;
 
-        const dueItems = Array.isArray(dueJson?.items) ? dueJson.items : [];
-
-        const hasTooMuchRevisionLeft = totalTodayCount > 0 && dueTodayPct > 0.7;
-        const hasTodoLeft = dueItems.length > 0;
+        const hasRevisionLeft = dueTodayCount > 0;
 
         const potdIsPending = solvedNow === false;
         const shouldShowPotdLateReminder = potdIsPending && isAfter10pmIST(now);
@@ -602,31 +570,18 @@ export default function Navbar() {
         const nextMode = shouldShowPotdLateReminder ? 'potd' : 'summary';
 
         let nextText = '';
-        let completionPct = totalTodayCount
-          ? Math.round(((totalTodayCount - dueTodayCount) / totalTodayCount) * 100)
-          : null;
+        const completionPct = null;
 
         if (shouldShowPotdLateReminder) {
           nextText = '';
-          completionPct = null;
         } else {
-          const parts = [];
-          if (hasTooMuchRevisionLeft) {
-            parts.push(
-              `Revision today bucket left: ${dueTodayCount}/${totalTodayCount} (${Math.round(dueTodayPct * 100)}%)`,
-            );
-          }
-          if (hasTodoLeft) {
-            parts.push(`LeetCode due for revision: ${dueItems.length}`);
-          }
-
-          nextText = parts.filter(Boolean).join(' • ');
+          nextText = hasRevisionLeft ? 'Complete your revision ASAP!!!!' : '';
         }
         const canShowNow = shouldShowPotdLateReminder ? canShowPotdLateReminderToday(now) : canShowHomeReminderNow();
 
         if (nextText && canShowNow) {
           setHomeReminderText(nextText);
-          setHomeReminderCompletionPct(completionPct);
+          setHomeReminderCompletionPct(null);
           setHomeReminderMode(nextMode);
           setHomeReminderOpen(true);
           if (shouldShowPotdLateReminder) markPotdLateReminderShownToday(now);
@@ -726,20 +681,15 @@ export default function Navbar() {
                       {homeReminderMode === 'potd' || homeReminderMode === 'contest' || homeReminderMode === 'week' ? null : (
                         <p className="text-base text-slate-300">Reminder</p>
                       )}
-                      <p className="mt-1 text-xl font-semibold text-white sm:text-2xl">
+                      <p className="mt-1 whitespace-pre-line text-xl font-semibold text-white sm:text-2xl">
                         {homeReminderMode === 'potd'
                           ? 'DO IT ASAP !!! BEFORE SLEEPING'
                           : homeReminderMode === 'contest'
                             ? homeReminderText || 'Contest Reminder'
                             : homeReminderMode === 'week'
                               ? homeReminderText || 'Weekly Revision Reminder'
-                            : 'You still have tasks left'}
+                            : 'Complete your revision ASAP!!!!'}
                       </p>
-                      {homeReminderMode === 'summary' && Number.isFinite(homeReminderCompletionPct) ? (
-                        <p className="mt-2 text-sm text-slate-200/90">
-                          Completion: <span className="font-semibold text-white">{homeReminderCompletionPct}%</span>
-                        </p>
-                      ) : null}
                     </div>
                     <button
                       type="button"
@@ -750,14 +700,8 @@ export default function Navbar() {
                     </button>
                   </div>
 
-                  {homeReminderMode === 'summary' && homeReminderText ? (
-                    <p className="mt-5 text-base text-slate-200/90">{homeReminderText}</p>
-                  ) : null}
-
                   {homeReminderMode === 'summary' ? (
                     <>
-                      <p className="mt-3 text-sm text-slate-400">{CONTEST_SCHEDULE_TEXT}</p>
-
                       <div className="mt-6 flex flex-wrap gap-3">
                         <NavLink
                           to="/today"

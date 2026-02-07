@@ -8,8 +8,22 @@ import {
   CONTEST_SCHEDULE_TEXT,
   formatContestStartsAtIST,
   getNextContestIST,
-  getUpcomingSundayEndIST,
 } from '../utils/contestSchedule.js';
+
+function getUpcomingWeeklyResetMs(nowMs) {
+  // Weekly reset: Sunday 5:30 AM IST == Sunday 00:00 UTC.
+  // Compute next Sunday 00:00 UTC strictly after now.
+  const now = new Date(nowMs);
+  if (Number.isNaN(now.getTime())) return NaN;
+
+  const base = new Date(now);
+  base.setUTCHours(0, 0, 0, 0);
+  const day = base.getUTCDay(); // 0=Sun
+  const daysUntilSunday = (7 - day) % 7;
+  let sundayStartMs = base.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000;
+  if (sundayStartMs <= now.getTime()) sundayStartMs += 7 * 24 * 60 * 60 * 1000;
+  return sundayStartMs;
+}
 
 function pad2(n) {
   return String(Math.max(0, Number(n) || 0)).padStart(2, '0');
@@ -68,6 +82,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!isLoggedIn) {
       setRevTodayTotal(0);
       setRevTodayDue(0);
@@ -101,6 +116,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [isLoggedIn]);
 
   const revisionSubtitle = useMemo(() => {
@@ -113,10 +129,9 @@ export default function Home() {
     if (Number.isFinite(revWeekEndsAtMs)) {
       return formatCountdownDHMS(revWeekEndsAtMs - nowTick);
     }
-    const end = getUpcomingSundayEndIST(new Date(nowTick));
-    const endsAt = end?.endsAtUtc?.getTime();
-    if (!Number.isFinite(endsAt)) return '--';
-    return formatCountdownDHMS(endsAt - nowTick);
+    const nextResetMs = getUpcomingWeeklyResetMs(nowTick);
+    if (!Number.isFinite(nextResetMs)) return '--';
+    return formatCountdownDHMS(nextResetMs - nowTick);
   }, [nowTick, revWeekEndsAtMs]);
 
   const nextContest = useMemo(() => {

@@ -450,16 +450,6 @@ export default function QuestionsCatalog() {
                       : null}
                   </div>
 
-                  {false ? (
-                    <div className="tags-container">
-                      {q.tags.slice(0, 4).map((t) => (
-                        <span key={t.slug} className="tag">
-                          {t.name}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 10 }}>
                     <a
                       className="add-question-btn"

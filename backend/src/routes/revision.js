@@ -235,6 +235,39 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
   return { updated: result?.modifiedCount || 0, reason: 'ok' };
 }
 
+async function rolloverOverdueTodayToWeek({ userId }) {
+  // At the task-day boundary (5:30 AM IST == midnight UTC), any remaining
+  // Today bucket items should move into Weekly if not completed.
+  // We detect "overdue" Today items by comparing their dueAt to the start of
+  // the current UTC day.
+  const now = new Date();
+  const startUtcMs = startOfUtcDay(now).getTime();
+
+  const overdueToday = await RevisionItem.find({
+    userId,
+    bucket: 'today',
+    bucketDueAt: { $lt: new Date(startUtcMs) },
+  })
+    .select({ _id: 1 })
+    .lean();
+
+  if (!overdueToday.length) return { moved: 0 };
+
+  const ids = overdueToday.map((x) => x._id);
+  const result = await RevisionItem.updateMany(
+    { userId, _id: { $in: ids } },
+    {
+      $set: {
+        bucket: 'week',
+        bucketDueAt: computeBucketDueAt('week', now),
+        updatedAt: new Date(),
+      },
+    },
+  );
+
+  return { moved: result?.modifiedCount || 0 };
+}
+
 // GET /api/revision/summary
 router.get('/summary', requireMongo, requireAuth, async (req, res) => {
   const userId = getUserId(req);
@@ -280,6 +313,13 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
     await autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySlug });
   } catch (e) {
     // Non-fatal: summary still works if LeetCode is unavailable.
+  }
+
+  // At/after the reset boundary: roll any leftover Today items into Weekly.
+  try {
+    await rolloverOverdueTodayToWeek({ userId });
+  } catch (e) {
+    // Non-fatal.
   }
 
   const items = await RevisionItem.find({ userId })
