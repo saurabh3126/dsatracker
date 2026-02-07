@@ -3,6 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 const AuthContext = createContext(null);
 
+const LAST_VISIT_KEY = 'dsaTracker.auth.lastVisitAtMs';
+const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+
 function safeReadToken() {
   try {
     return window.localStorage.getItem('token');
@@ -15,6 +18,25 @@ function safeWriteToken(token) {
   try {
     if (!token) window.localStorage.removeItem('token');
     else window.localStorage.setItem('token', token);
+  } catch {
+    // ignore
+  }
+}
+
+function safeReadLastVisitAtMs() {
+  try {
+    const raw = window.localStorage.getItem(LAST_VISIT_KEY);
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteLastVisitAtMs(ms) {
+  try {
+    if (!Number.isFinite(ms)) return;
+    window.localStorage.setItem(LAST_VISIT_KEY, String(ms));
   } catch {
     // ignore
   }
@@ -71,6 +93,30 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
+  }, [logout]);
+
+  useEffect(() => {
+    // Auto-logout if the user returns after being away for 2+ days.
+    // Note: we can't log out while the site is closed; this runs on next visit.
+    if (typeof window === 'undefined') return;
+
+    const now = Date.now();
+    const last = safeReadLastVisitAtMs();
+    const storedToken = safeReadToken();
+
+    if (storedToken && Number.isFinite(last) && now - last >= TWO_DAYS_MS) {
+      logout();
+    }
+
+    safeWriteLastVisitAtMs(now);
+
+    function onVisibility() {
+      if (document.visibilityState !== 'visible') return;
+      safeWriteLastVisitAtMs(Date.now());
+    }
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [logout]);
 
   useEffect(() => {
