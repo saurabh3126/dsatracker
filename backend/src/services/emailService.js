@@ -59,13 +59,34 @@ function getTransporterIpv4() {
 
 function shouldRetryWithIpv4(err) {
   const code = String(err?.code || '').toUpperCase();
-  if (!code) return false;
+  const syscall = String(err?.syscall || '').toLowerCase();
+  const errno = Number(err?.errno);
+  const address = String(err?.address || '');
+  const msg = String(err?.message || '');
+  const msgUpper = msg.toUpperCase();
 
-  // Typical when smtp.gmail.com resolves to an IPv6 address but IPv6 is unavailable.
+  // If DNS picked an IPv6 address but the runtime has no IPv6 route,
+  // Node frequently surfaces this as code=ESOCKET but message includes ENETUNREACH.
+  if (msgUpper.includes('ENETUNREACH')) return true;
+
+  // Typical direct code.
   if (code === 'ENETUNREACH') return true;
 
-  // Other transient network/DNS errors where IPv4-only retry can help.
+  // -101 is commonly "Network is unreachable" on Linux.
+  if (errno === -101) return true;
+
+  // Only retry connect-level failures (avoid masking auth/SMTP protocol errors).
+  const isConnectFailure = syscall === 'connect' || String(err?.command || '').toUpperCase() === 'CONN';
+  if (!isConnectFailure) return false;
+
+  // Transient network/DNS errors where IPv4-only retry can help.
   if (code === 'EAI_AGAIN' || code === 'ETIMEDOUT') return true;
+
+  // If we were given an IPv6 address (contains ':'), IPv4 retry is often useful.
+  if (address.includes(':')) return true;
+
+  // Nodemailer uses ESOCKET for low-level socket/connect failures.
+  if (code === 'ESOCKET') return true;
 
   return false;
 }
