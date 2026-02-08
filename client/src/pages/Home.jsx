@@ -199,6 +199,11 @@ export default function Home() {
 
   const handleFeedbackSubmit = async (e) => {
     e.preventDefault();
+    if (!isLoggedIn) {
+      setFeedbackStatus('login');
+      setTimeout(() => setFeedbackStatus(''), 3000);
+      return;
+    }
     if (!feedback.message.trim()) return;
     
     setFeedbackStatus('sending');
@@ -476,6 +481,15 @@ export default function Home() {
                 Your insights help us build the best version of this platform. Share your thoughts with us!
               </p>
 
+              {!isLoggedIn ? (
+                <div style={{ textAlign: 'center', margin: '-18px auto 26px', fontSize: '13px', color: 'rgba(255,255,255,0.65)' }}>
+                  <Link to="/login" style={{ color: '#6B73FF', fontWeight: 700, textDecoration: 'none' }}>
+                    Login
+                  </Link>{' '}
+                  to send message.
+                </div>
+              ) : null}
+
               <form onSubmit={handleFeedbackSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <label style={{ fontSize: '11px', fontWeight: '700', color: '#6B73FF', textTransform: 'uppercase', letterSpacing: '0.15em', paddingLeft: '8px' }}>
@@ -485,7 +499,10 @@ export default function Home() {
                   {/* Custom Modern Dropdown */}
                   <div ref={dropdownRef} style={{ position: 'relative', width: '100%' }}>
                     <div 
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      onClick={() => {
+                        if (!isLoggedIn) return;
+                        setIsDropdownOpen(!isDropdownOpen);
+                      }}
                       style={{
                         background: 'rgba(255,255,255,0.05)',
                         border: `1px solid ${isDropdownOpen ? '#6B73FF' : 'rgba(255,255,255,0.15)'}`,
@@ -493,12 +510,13 @@ export default function Home() {
                         padding: '14px 20px',
                         color: 'white',
                         fontSize: '14px',
-                        cursor: 'pointer',
+                        cursor: isLoggedIn ? 'pointer' : 'not-allowed',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         boxShadow: isDropdownOpen ? '0 0 20px rgba(107, 115, 255, 0.2)' : '0 4px 6px rgba(0,0,0,0.1)',
+                        opacity: isLoggedIn ? 1 : 0.75,
                       }}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -592,9 +610,10 @@ export default function Home() {
                   <div style={{ position: 'relative' }}>
                     <textarea 
                       required
+                      disabled={!isLoggedIn}
                       value={feedback.message}
                       onChange={(e) => setFeedback({ ...feedback, message: e.target.value })}
-                      placeholder="Share your thoughts..."
+                      placeholder={isLoggedIn ? 'Share your thoughts...' : 'Login to send message...'}
                       style={{
                         background: 'rgba(255,255,255,0.05)',
                         border: '1px solid rgba(255,255,255,0.15)',
@@ -609,8 +628,10 @@ export default function Home() {
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         lineHeight: '1.6',
                         boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                        opacity: isLoggedIn ? 1 : 0.75,
                       }}
                       onFocus={(e) => {
+                        if (!isLoggedIn) return;
                         e.target.style.borderColor = '#6B73FF';
                         e.target.style.background = 'rgba(255,255,255,0.08)';
                         e.target.style.boxShadow = '0 0 20px rgba(107, 115, 255, 0.15)';
@@ -629,7 +650,7 @@ export default function Home() {
 
                 <button 
                   type="submit"
-                  disabled={feedbackStatus === 'sending'}
+                  disabled={feedbackStatus === 'sending' || !isLoggedIn}
                   className="cta-button primary-button"
                   style={{ 
                     width: '100%', 
@@ -640,14 +661,14 @@ export default function Home() {
                     fontSize: '15px',
                     fontWeight: '700',
                     boxShadow: '0 15px 30px -10px rgba(107, 115, 255, 0.4)',
-                    opacity: feedbackStatus === 'sending' ? 0.7 : 1,
+                    opacity: feedbackStatus === 'sending' || !isLoggedIn ? 0.7 : 1,
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
                     transition: 'all 0.3s ease'
                   }}
                   onMouseOver={(e) => {
-                    if (feedbackStatus !== 'sending') {
+                    if (feedbackStatus !== 'sending' && isLoggedIn) {
                       e.currentTarget.style.boxShadow = '0 20px 40px -10px rgba(107, 115, 255, 0.6)';
                     }
                   }}
@@ -655,16 +676,26 @@ export default function Home() {
                     e.currentTarget.style.boxShadow = '0 15px 30px -10px rgba(107, 115, 255, 0.4)';
                   }}
                 >
-                  {feedbackStatus === 'sending' ? (
+                  {!isLoggedIn ? (
+                    <><i className="fas fa-lock"></i> Login to submit</>
+                  ) : feedbackStatus === 'sending' ? (
                     <><LoadingIndicator label="" size="sm" className="flex-row gap-0" /> Sending...</>
                   ) : feedbackStatus === 'sent' ? (
                     <><i className="fas fa-check-circle"></i> Feedback Received!</>
+                  ) : feedbackStatus === 'login' ? (
+                    <><i className="fas fa-lock"></i> Login required</>
                   ) : feedbackStatus === 'error' ? (
                     <><i className="fas fa-exclamation-circle"></i> Failed to send</>
                   ) : (
                     <><i className="fas fa-paper-plane"></i> Submit Feedback</>
                   )}
                 </button>
+
+                {!isLoggedIn ? (
+                  <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: '12px', marginTop: '-8px' }}>
+                    Please log in to send feedback.
+                  </div>
+                ) : null}
               </form>
             </div>
           </div>
