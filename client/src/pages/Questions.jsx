@@ -4,6 +4,8 @@ import { apiGet, apiPost } from '../lib/api';
 import questionsCss from '../legacy/questions.css?raw';
 import { useLegacyStyle } from '../legacy/useLegacyStyle';
 import { useAuth } from '../auth/AuthContext.jsx';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/atom-one-dark.css';
 
 const DEFAULT_DATA = { questions: [], practiceLogs: [], topics: {} };
 
@@ -157,7 +159,7 @@ export default function Questions() {
     if (!selectedQuestion) return;
     window.setTimeout(() => {
       try {
-        window.hljs?.highlightAll?.();
+        hljs.highlightAll();
       } catch {
         // ignore
       }
