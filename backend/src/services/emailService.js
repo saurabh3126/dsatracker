@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim();
 
@@ -33,6 +34,13 @@ function createTransporter({ family } = {}) {
   const fam = Number(family);
   if (fam === 4 || fam === 6) {
     transport.family = fam;
+
+    // Force DNS resolution to the requested family. This avoids cases where
+    // the runtime prefers IPv6 but the network has no IPv6 route (common on some hosts).
+    transport.lookup = (hostname, options, callback) => {
+      const opts = typeof options === 'object' && options ? options : {};
+      return dns.lookup(hostname, { ...opts, family: fam, all: false }, callback);
+    };
   }
 
   return nodemailer.createTransport(transport);
@@ -128,7 +136,11 @@ const sendEmail = async ({ to, subject, htmlContent }) => {
       try {
         const transporterV4 = getTransporterIpv4();
         if (transporterV4) {
-          return await transporterV4.sendMail(payload);
+          const info = await transporterV4.sendMail(payload);
+
+          // If IPv4 works, prefer it for subsequent sends in this process.
+          cachedTransporter = transporterV4;
+          return info;
         }
       } catch (retryErr) {
         console.error('SMTP Email Error (IPv4 retry failed):', retryErr);
