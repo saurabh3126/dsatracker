@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
+import LoadingIndicator from './LoadingIndicator.jsx';
 
 function difficultyMeta(difficulty) {
   const d = String(difficulty || '').toLowerCase();
@@ -182,7 +183,11 @@ export default function LeetCodeRevisionDashboard() {
                     : 'bg-slate-950/40 text-slate-100 hover:bg-slate-950/60')
                 }
               >
-                <RefreshCcw className={"h-4 w-4 " + (syncing ? 'animate-spin' : '')} />
+                {syncing ? (
+                  <LoadingIndicator label="" size="sm" className="flex-row gap-0" />
+                ) : (
+                  <RefreshCcw className="h-4 w-4" />
+                )}
                 {syncing ? 'Syncing…' : 'Sync Now'}
               </button>
 
@@ -282,8 +287,8 @@ export default function LeetCodeRevisionDashboard() {
 
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {loading && (
-              <div className="col-span-full rounded-2xl border border-slate-800/60 bg-slate-950/30 p-6 text-sm text-slate-300">
-                Loading…
+              <div className="col-span-full rounded-2xl border border-slate-800/60 bg-slate-950/30 p-10 text-sm text-slate-300">
+                <LoadingIndicator label="Loading…" size="lg" />
               </div>
             )}
 

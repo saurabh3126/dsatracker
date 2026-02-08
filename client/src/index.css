@@ -19,6 +19,7 @@ html {
 body {
   margin: 0;
   background: #0b1220;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

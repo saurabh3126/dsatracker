@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { CalendarClock, CheckSquare, ClipboardPlus, Code2, ExternalLink, RefreshCcw, ChevronDown } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useStarred } from '../auth/StarredContext.jsx';
 import { apiGet, apiPatch, apiPost } from '../lib/api.js';
+import LoadingIndicator from './LoadingIndicator.jsx';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -128,14 +130,14 @@ function Tabs({ value, onChange, items }) {
           key={t.value}
           type="button"
           onClick={() => onChange(t.value)}
-          className={`flex items-center gap-3 rounded-full px-6 py-3 text-sm font-bold transition-all duration-300 ${
+          className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-300 sm:gap-3 sm:px-6 sm:py-3 sm:text-sm ${
             value === t.value
               ? 'bg-amber-500 text-black shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] scale-105'
               : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
           }`}
         >
           {t.label}
-          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black ${
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black sm:px-2.5 ${
             value === t.value ? 'bg-black/20 text-black' : 'bg-white/10 text-slate-500'
           }`}>
             {t.count}
@@ -156,6 +158,7 @@ function ItemRow({
   isMoveToMonthChecked,
   onToggleMoveToMonth
 }) {
+  const { isStarred, toggleStar } = useStarred();
   const title = item.title || item.ref;
   const link = item.link || (item.source === 'leetcode' ? `https://leetcode.com/problems/${item.ref}/` : '');
   const now = new Date();
@@ -190,7 +193,7 @@ function ItemRow({
   const showLeetCodeLastAccepted = String(item?.source || '').toLowerCase() === 'leetcode' && item.leetcodeLastAcceptedAt;
 
   return (
-    <div className="group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/5 bg-[#1C1C2E]/40 p-7 transition-all duration-500 hover:bg-[#1C1C2E] hover:border-amber-500/50 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)]">
+    <div className="group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/5 bg-[#1C1C2E]/40 p-5 transition-all duration-500 hover:bg-[#1C1C2E] hover:border-amber-500/50 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.6)] sm:p-7">
       {/* Glass Reflection Effect */}
       <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg]"></div>
       
@@ -214,7 +217,7 @@ function ItemRow({
                 </span>
               ) : null}
             </div>
-            
+
             <div className="flex flex-wrap gap-2 mb-4">
               <div className="flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/10 px-2.5 py-1 text-[11px] font-bold text-slate-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
@@ -242,17 +245,36 @@ function ItemRow({
             </div>
           </div>
 
-          {link ? (
-            <a
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition-all hover:bg-amber-500 hover:text-black hover:border-amber-500 hover:shadow-[0_0_15px_rgba(245,158,11,0.4)]"
-              href={link}
-              target="_blank"
-              rel="noreferrer"
-              title="Open Problem"
+          <div className="flex shrink-0 items-center gap-2">
+            {link ? (
+              <a
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition-all hover:bg-amber-500 hover:text-black hover:border-amber-500 hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] sm:h-10 sm:w-10"
+                href={link}
+                target="_blank"
+                rel="noreferrer"
+                title="Open Problem"
+              >
+                <ExternalLink className="h-5 w-5" />
+              </a>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() =>
+                toggleStar({
+                  source: item.source,
+                  ref: item.ref,
+                  title,
+                  difficulty: item.difficulty || null,
+                  link: link || '',
+                })
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition-all hover:bg-white/10 sm:h-10 sm:w-10"
+              title={isStarred(item.source, item.ref) ? 'Unstar' : 'Star'}
             >
-              <ExternalLink className="h-5 w-5" />
-            </a>
-          ) : null}
+              <i className={`${isStarred(item.source, item.ref) ? 'fas' : 'far'} fa-star ${isStarred(item.source, item.ref) ? 'text-amber-500' : ''}`} />
+            </button>
+          </div>
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
@@ -543,7 +565,9 @@ export default function RevisionBucketsDashboard() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="mx-auto max-w-7xl px-4 py-12 flex-1">
+      <div
+        className={`mx-auto ${activeTab === 'today' ? 'max-w-screen-xl' : 'max-w-7xl'} w-full px-4 py-8 flex-1 sm:py-12`}
+      >
       {confirmDone ? (
         <div
           role="dialog"
@@ -553,7 +577,7 @@ export default function RevisionBucketsDashboard() {
             if (e.target === e.currentTarget && !confirmDoneSubmitting) setConfirmDone(null);
           }}
         >
-          <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0d0e14] p-8 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.8)]">
+          <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#0d0e14] p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.8)] sm:p-8">
             <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
               <CheckSquare className="h-7 w-7" />
             </div>
@@ -571,7 +595,7 @@ export default function RevisionBucketsDashboard() {
             <div className="mt-8 flex gap-3">
               <button
                 type="button"
-                className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-4 text-sm font-bold text-slate-200 transition-all hover:bg-white/10 disabled:opacity-50"
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-bold text-slate-200 transition-all hover:bg-white/10 disabled:opacity-50 sm:py-4"
                 disabled={confirmDoneSubmitting}
                 onClick={() => setConfirmDone(null)}
               >
@@ -579,7 +603,7 @@ export default function RevisionBucketsDashboard() {
               </button>
               <button
                 type="button"
-                className="flex-1 rounded-2xl bg-amber-500 py-4 text-sm font-bold text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 disabled:opacity-50"
+                className="flex-1 rounded-2xl bg-amber-500 py-3.5 text-sm font-bold text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 disabled:opacity-50 sm:py-4"
                 disabled={confirmDoneSubmitting}
                 onClick={submitConfirmDone}
               >
@@ -590,9 +614,9 @@ export default function RevisionBucketsDashboard() {
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-10">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-8 sm:mb-10">
         <div>
-          <h1 className="text-4xl font-black tracking-tight text-amber-500 mb-2">Revision</h1>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-amber-500 mb-2">Revision</h1>
         </div>
 
         <button
@@ -612,14 +636,14 @@ export default function RevisionBucketsDashboard() {
         </button>
       </div>
 
-      <div className="relative mb-12 rounded-[2.5rem] border border-white/5 bg-[#1C1C2E]/30 p-8 backdrop-blur-sm">
-        <div className="absolute top-0 right-0 p-8 opacity-5">
+      <div className="relative mb-12 rounded-[2.5rem] border border-white/5 bg-[#1C1C2E]/30 p-6 sm:p-8 backdrop-blur-sm">
+        <div className="absolute top-0 right-0 p-6 sm:p-8 opacity-5">
             <ClipboardPlus className="h-24 w-24 text-white" />
         </div>
 
         <form onSubmit={handleAddFromLeetCode} className="relative z-10 font-sans">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-            <div className="md:col-span-7 relative">
+            <div className={`${activeTab === 'today' ? 'md:col-span-8' : 'md:col-span-7'} relative`}>
               <label className="block text-xs font-black uppercase tracking-widest text-amber-500 mb-2 px-1 text-[10px]">LeetCode Problem</label>
               <div className="relative">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
@@ -679,7 +703,7 @@ export default function RevisionBucketsDashboard() {
               )}
             </div>
 
-            <div className="md:col-span-3">
+            <div className={activeTab === 'today' ? 'md:col-span-2' : 'md:col-span-3'}>
               <label className="block text-xs font-black uppercase tracking-widest text-amber-500 mb-2 px-1 text-[10px]">Target When</label>
               <div className="relative" ref={whenDropdownRef}>
                 <div 
@@ -747,9 +771,8 @@ export default function RevisionBucketsDashboard() {
       </div>
 
       {loading && (
-          <div className="flex flex-col items-center justify-center py-12 gap-4 opacity-60">
-              <RefreshCcw className="h-10 w-10 animate-spin text-amber-500" />
-              <p className="text-sm font-bold tracking-widest uppercase text-slate-500">Analyzing Buckets...</p>
+          <div className="py-12 opacity-60">
+          <LoadingIndicator label="Analyzing Buckets..." size="lg" />
           </div>
       )}
 
@@ -784,12 +807,15 @@ export default function RevisionBucketsDashboard() {
                       onCompleteMonth={completeMonth}
                     />
                   ))}
-                </div>
-                {!today.length ? (
-                    <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">All questions revised for today! 🎉</p>
+
+                  {!today.length ? (
+                    <div className="rounded-[2rem] border-2 border-dashed border-white/5 bg-[#1C1C2E]/20 p-8 sm:p-10">
+                      <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">
+                        All questions revised for today! 🎉
+                      </p>
                     </div>
-                ) : null}
+                  ) : null}
+                </div>
               </>
             )}
 
@@ -822,7 +848,7 @@ export default function RevisionBucketsDashboard() {
                   })}
                 </div>
                 {!week.length ? (
-                    <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
+                  <div className="py-12 text-center rounded-[2.5rem] border-2 border-dashed border-white/5 sm:py-20">
                         <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No items queued for Sunday revision.</p>
                     </div>
                 ) : null}
@@ -849,45 +875,12 @@ export default function RevisionBucketsDashboard() {
                   ))}
                 </div>
                 {!month.length ? (
-                    <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
+                    <div className="py-12 text-center rounded-[2.5rem] border-2 border-dashed border-white/5 sm:py-20">
                         <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Monthly bucket is currently empty.</p>
                     </div>
                 ) : null}
               </>
             )}
-          </div>
-
-          <div className="mt-16 rounded-[2rem] border border-white/5 bg-[#1C1C2E]/20 p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  <CheckSquare className="h-5 w-5" />
-              </div>
-              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">System Protocols</h4>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="flex gap-4">
-                  <div className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-slate-400 border border-white/10">01</div>
-                  <div>
-                      <h5 className="text-xs font-bold text-slate-200 mb-1">Deduplication</h5>
-                      <p className="text-xs text-slate-500 leading-relaxed">System ensures unique entries per user profile to prevent revision clutter.</p>
-                  </div>
-              </div>
-              <div className="flex gap-4">
-                  <div className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-slate-400 border border-white/10">02</div>
-                  <div>
-                      <h5 className="text-xs font-bold text-slate-200 mb-1">Auto-Elevation</h5>
-                      <p className="text-xs text-slate-500 leading-relaxed">Medium and Hard problems automatically advance to the Deep Memory bucket upon weekly completion.</p>
-                  </div>
-              </div>
-              <div className="flex gap-4">
-                  <div className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-slate-400 border border-white/10">03</div>
-                  <div>
-                      <h5 className="text-xs font-bold text-slate-200 mb-1">Manual Upgrade</h5>
-                      <p className="text-xs text-slate-500 leading-relaxed">Easy questions can be manually promoted to the Monthly cycle via the post-completion protocol.</p>
-                  </div>
-              </div>
-            </div>
           </div>
         </>
       )}

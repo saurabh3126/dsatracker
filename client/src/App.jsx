@@ -6,6 +6,7 @@ import AddQuestion from './pages/AddQuestion.jsx';
 import Revision from './pages/Revision.jsx';
 import TodayTask from './pages/TodayTask.jsx';
 import SolvedQuestions from './pages/SolvedQuestions.jsx';
+import StarredQuestions from './pages/StarredQuestions.jsx';
 import Topics from './pages/Topics.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
@@ -24,6 +25,7 @@ function App() {
           <Route path="/revision" element={<Revision />} />
           <Route path="/today" element={<TodayTask />} />
           <Route path="/solved" element={<SolvedQuestions />} />
+          <Route path="/starred" element={<StarredQuestions />} />
           <Route path="/topics" element={<Topics />} />
           <Route path="/add" element={<AddQuestion />} />
 

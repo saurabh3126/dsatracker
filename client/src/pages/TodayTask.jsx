@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import LoadingIndicator from '../components/LoadingIndicator.jsx';
 import { apiGet } from '../lib/api.js';
 import { 
   CheckCircle2, 
@@ -300,18 +301,18 @@ export default function TodayTask() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 flex-1">
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-12">
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-12 flex-1">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-10 sm:mb-12">
         <div>
-          <h1 className="text-4xl font-black tracking-tight text-white mb-2">Today's Focus</h1>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white mb-2">Today's Focus</h1>
           <div className="flex items-center gap-3 text-slate-400">
             <p className="text-sm font-bold uppercase tracking-widest">{formatKeyDMY(dayKey)}</p>
           </div>
         </div>
 
         {!loading && (
-          <div className="flex gap-4">
-            <div className={`flex items-center gap-3 rounded-2xl border bg-white/5 px-5 py-3 transition-all ${potdSolved ? 'border-emerald-500/30 text-emerald-400' : 'border-white/10 text-slate-400'}`}>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className={`flex items-center gap-3 rounded-2xl border bg-white/5 px-4 py-3 sm:px-5 transition-all ${potdSolved ? 'border-emerald-500/30 text-emerald-400' : 'border-white/10 text-slate-400'}`}>
               <Trophy className={`h-5 w-5 ${potdSolved ? 'fill-emerald-400/20' : ''}`} />
               <div>
                 <div className="text-[10px] font-black uppercase tracking-widest opacity-50">POTD Status</div>
@@ -319,7 +320,7 @@ export default function TodayTask() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-slate-400">
+            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 sm:px-5 text-slate-400">
               <LayoutGrid className="h-5 w-5" />
               <div>
                 <div className="text-[10px] font-black uppercase tracking-widest opacity-50">Revision Progress</div>
@@ -331,21 +332,21 @@ export default function TodayTask() {
       </div>
 
       {error ? (
-        <div className="mb-8 flex items-center gap-4 rounded-[2rem] border border-rose-500/20 bg-rose-500/10 p-6 text-rose-400">
+        <div className="mb-8 flex items-center gap-4 rounded-[2rem] border border-rose-500/20 bg-rose-500/10 p-4 sm:p-6 text-rose-400">
             <AlertCircle className="h-6 w-6 shrink-0" />
             <p className="font-bold">{error}</p>
         </div>
       ) : null}
 
       {!isAuthed && !loading && (
-          <div className="mb-8 flex items-center gap-4 rounded-[2rem] border border-amber-500/20 bg-amber-500/10 p-6 text-amber-400">
+          <div className="mb-8 flex items-center gap-4 rounded-[2rem] border border-amber-500/20 bg-amber-500/10 p-4 sm:p-6 text-amber-400">
               <AlertCircle className="h-6 w-6 shrink-0" />
               <p className="font-bold">You're not logged in, so this is showing global demo data. Log in to see your personal tasks.</p>
           </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        <div className="lg:col-span-7 space-y-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10">
+        <div className="lg:col-span-7 space-y-8 sm:space-y-10">
           <section>
             <div className="flex items-center gap-3 mb-6 px-2">
               <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
@@ -356,14 +357,14 @@ export default function TodayTask() {
 
             {loading ? (
               <div className="h-48 rounded-[2.5rem] bg-white/5 border border-white/5 animate-pulse flex items-center justify-center">
-                <div className="h-8 w-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+                <LoadingIndicator label="" size="sm" />
               </div>
             ) : (
-              <div className="group relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#1C1C2E]/40 p-8 transition-all hover:bg-[#1C1C2E] hover:border-amber-500/30">
+              <div className="group relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#1C1C2E]/40 p-6 sm:p-8 transition-all hover:bg-[#1C1C2E] hover:border-amber-500/30">
                 {/* Glass Reflection Effect */}
                 <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] z-20"></div>
                 
-                <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                <div className="absolute top-0 right-0 p-6 sm:p-8 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
                     <Trophy className="h-32 w-32 text-white" />
                 </div>
                 
@@ -379,7 +380,7 @@ export default function TodayTask() {
                         </span>
                       )}
                     </div>
-                    <h3 className="text-2xl font-black text-white leading-tight mb-2 group-hover:text-amber-500 transition-colors italic">
+                      <h3 className="text-xl sm:text-2xl font-black text-white leading-tight mb-2 group-hover:text-amber-500 transition-colors italic">
                        {potdTitle}
                     </h3>
                     <p className="text-sm text-slate-400 font-medium italic">LeetCode Problem of the Day</p>
@@ -389,7 +390,7 @@ export default function TodayTask() {
                     href={potdLink}
                     target="_blank"
                     rel="noreferrer"
-                    className="shrink-0 inline-flex items-center gap-3 rounded-2xl bg-amber-500 px-8 py-4 text-sm font-black uppercase tracking-widest text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 hover:scale-[1.02] active:scale-[0.98] italic"
+                    className="shrink-0 inline-flex items-center gap-3 rounded-2xl bg-amber-500 px-6 py-3.5 sm:px-8 sm:py-4 text-[12px] sm:text-sm font-black uppercase tracking-widest text-black shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-400 hover:scale-[1.02] active:scale-[0.98] italic"
                   >
                     Initiate Challenge
                     <ExternalLink className="h-4 w-4" />
@@ -423,7 +424,7 @@ export default function TodayTask() {
                       <div
                         key={q._id}
                         onClick={() => setChecked(`task:${q._id}`, !isChecked)}
-                        className={`group cursor-pointer relative overflow-hidden flex items-center justify-between gap-6 rounded-[2rem] border p-6 transition-all duration-500 ${
+                        className={`group cursor-pointer relative overflow-hidden flex items-center justify-between gap-4 sm:gap-6 rounded-[2rem] border p-5 sm:p-6 transition-all duration-500 ${
                           isChecked 
                             ? 'bg-emerald-500/5 border-emerald-500/20' 
                             : 'bg-[#1C1C2E]/40 border-white/5 hover:border-white/20 hover:bg-[#1C1C2E]'
@@ -461,7 +462,7 @@ export default function TodayTask() {
                     );
                   })
                 ) : (
-                  <div className="py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
+                  <div className="py-12 sm:py-20 text-center rounded-[2.5rem] border-2 border-dashed border-white/5">
                     <CheckCircle2 className="h-12 w-12 text-emerald-500/20 mx-auto mb-4" />
                     <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No revisions due for today!</p>
                   </div>
@@ -472,7 +473,7 @@ export default function TodayTask() {
         </div>
 
         <div className="lg:col-span-5">
-            <section className="sticky top-24">
+            <section className="lg:sticky lg:top-24">
                 <div className="flex items-center justify-between mb-6 px-2">
                     <div className="flex items-center gap-3">
                         <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
@@ -483,7 +484,7 @@ export default function TodayTask() {
                 </div>
 
                 <div className="rounded-[2.5rem] border border-white/10 bg-[#05070a] overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
-                    <div className="bg-white/5 border-b border-white/5 p-6">
+                  <div className="bg-white/5 border-b border-white/5 p-4 sm:p-6">
                         <div className="flex items-center justify-between gap-4 mb-4">
                             <button 
                                 onClick={() => setSelectedDateKey(addUtcDaysToKey(selectedDateKey, -1))}
@@ -510,7 +511,7 @@ export default function TodayTask() {
                                 value={todoText}
                                 onChange={(e) => setTodoText(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && addTodo()}
-                                className="w-full rounded-2xl border border-white/5 bg-[#050506] py-4 pl-5 pr-14 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all shadow-inner"
+                                className="w-full rounded-2xl border border-white/5 bg-[#050506] py-3.5 sm:py-4 pl-5 pr-14 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all shadow-inner"
                             />
                             <button
                                 onClick={addTodo}
@@ -521,7 +522,7 @@ export default function TodayTask() {
                         </div>
                     </div>
 
-                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-6 space-y-3">
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-3">
                         {todos.length > 0 ? (
                             todos.map((t) => (
                                 <div

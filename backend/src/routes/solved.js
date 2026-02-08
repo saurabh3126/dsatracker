@@ -200,4 +200,24 @@ router.post('/from-leetcode', requireMongo, requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/solved/:id/notes
+// Body: { notes }
+router.patch('/:id/notes', requireMongo, requireAuth, async (req, res) => {
+  const userId = getUserId(req);
+  const id = String(req.params.id || '').trim();
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'Invalid id' });
+
+  const notesRaw = String(req.body?.notes ?? '');
+  const notes = notesRaw.trim().slice(0, 1000);
+
+  const item = await SolvedQuestion.findOneAndUpdate(
+    { _id: id, userId },
+    { $set: { notes, updatedAt: new Date() } },
+    { new: true }
+  ).lean();
+
+  if (!item) return res.status(404).json({ error: 'Solved question not found' });
+  return res.json({ item });
+});
+
 module.exports = router;

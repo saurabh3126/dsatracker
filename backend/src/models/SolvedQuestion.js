@@ -18,6 +18,8 @@ const SolvedQuestionSchema = new mongoose.Schema(
 
     link: { type: String, default: '' },
 
+    notes: { type: String, default: '' },
+
     solvedAt: { type: Date, default: () => new Date(), index: true },
   },
   { timestamps: true }

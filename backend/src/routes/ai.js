@@ -6,15 +6,7 @@ const { fetchQuestionContent } = require('../services/leetcodeClient');
 const router = express.Router();
 
 function getAiProvider() {
-  const p = String(process.env.AI_PROVIDER || 'openai').trim().toLowerCase();
-  return p === 'gemini' ? 'gemini' : 'openai';
-}
-
-function looksLikeOpenAiApiKey(value) {
-  const s = String(value || '').trim();
-  if (!s) return false;
-  // Covers classic `sk-...` and newer `sk-proj-...` formats.
-  return s.startsWith('sk-') && s.length >= 20;
+  return 'gemini';
 }
 
 function looksLikeGeminiApiKey(value) {
@@ -28,24 +20,6 @@ function normalizeGeminiModelName(value) {
   const s = String(value || '').trim();
   if (!s) return '';
   return s.startsWith('models/') ? s.slice('models/'.length) : s;
-}
-
-function getOpenAiConfig() {
-  const baseUrl = String(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').trim();
-  const defaultModel = 'gpt-4o-mini';
-
-  const rawKey = String(process.env.OPENAI_API_KEY || '').trim();
-  const rawModel = String(process.env.OPENAI_MODEL || defaultModel).trim();
-
-  // Common misconfiguration: user pastes API key into OPENAI_MODEL.
-  if (!rawKey && looksLikeOpenAiApiKey(rawModel)) {
-    return { apiKey: rawModel, baseUrl, model: defaultModel, keySource: 'OPENAI_MODEL' };
-  }
-
-  // If OPENAI_MODEL looks like an API key, never treat it as a model name.
-  const safeModel = looksLikeOpenAiApiKey(rawModel) ? defaultModel : rawModel;
-
-  return { apiKey: rawKey, baseUrl, model: safeModel, keySource: 'OPENAI_API_KEY' };
 }
 
 function getGeminiConfig() {
@@ -111,25 +85,16 @@ function pickFallbackGeminiModel(models) {
 
 function getAiConfig() {
   const provider = getAiProvider();
-  if (provider === 'gemini') {
-    const cfg = getGeminiConfig();
-    return { provider, ...cfg };
-  }
-
-  const cfg = getOpenAiConfig();
+  const cfg = getGeminiConfig();
   return { provider, ...cfg };
 }
 
-function getMissingKeyMessage(provider) {
-  return provider === 'gemini'
-    ? 'AI quiz is not configured. Set GEMINI_API_KEY in the repo-root .env and restart the server.'
-    : 'AI quiz is not configured. Set OPENAI_API_KEY in the repo-root .env and restart the server.';
+function getMissingKeyMessage() {
+  return 'AI quiz is not configured. Set GEMINI_API_KEY in the repo-root .env and restart the server.';
 }
 
-function getInvalidKeyMessage(provider) {
-  return provider === 'gemini'
-    ? 'Invalid GEMINI_API_KEY. Update the key in the repo-root .env and restart the server.'
-    : 'Invalid OPENAI_API_KEY. Update the key in the repo-root .env and restart the server.';
+function getInvalidKeyMessage() {
+  return 'Invalid GEMINI_API_KEY. Update the key in the repo-root .env and restart the server.';
 }
 
 function stripHtmlToText(html) {
@@ -179,11 +144,7 @@ router.get('/status', requireAuth, (req, res) => {
   const apiKey = cfg.apiKey;
 
   const configured = Boolean(apiKey);
-  const looksValid = configured
-    ? cfg.provider === 'gemini'
-      ? looksLikeGeminiApiKey(apiKey)
-      : looksLikeOpenAiApiKey(apiKey)
-    : false;
+  const looksValid = configured ? looksLikeGeminiApiKey(apiKey) : false;
 
   return res.json({
     provider: cfg.provider,
@@ -195,92 +156,11 @@ router.get('/status', requireAuth, (req, res) => {
   });
 });
 
-async function openaiChatJson({ messages, model, timeoutMs }) {
-  const cfg = getOpenAiConfig();
-  const apiKey = cfg.apiKey;
-  if (!apiKey) {
-    // Use 4xx so the client shows a clear message (client hides most 5xx details).
-    const err = new Error(getMissingKeyMessage('openai'));
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const endpoint = String(cfg.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '') + '/chat/completions';
-  const selectedModel = model || cfg.model;
-  const ms = Math.max(2000, Number(timeoutMs || process.env.OPENAI_TIMEOUT_MS || 20000));
-
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), ms);
-
-  let res;
-  try {
-    res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        temperature: 0.3,
-        messages,
-        response_format: { type: 'json_object' },
-      }),
-      signal: controller.signal,
-    });
-  } catch (e) {
-    clearTimeout(t);
-    if (e?.name === 'AbortError') throw new Error(`AI request timed out after ${ms}ms`);
-    throw e;
-  } finally {
-    clearTimeout(t);
-  }
-
-  const json = await res.json().catch(() => null);
-  if (!res.ok) {
-    const upstreamStatus = Number(res.status || 0);
-    let msg = json?.error?.message || `AI request failed (${upstreamStatus || 'unknown'})`;
-
-    // Avoid leaking provider internals; return a user-actionable message.
-    if (upstreamStatus === 401 || upstreamStatus === 403) {
-      msg = getInvalidKeyMessage('openai');
-      const err = new Error(msg);
-      err.statusCode = 400;
-      throw err;
-    }
-
-    if (upstreamStatus === 429) {
-      msg = 'AI is rate limited right now. Please try again in a bit.';
-      const err = new Error(msg);
-      err.statusCode = 429;
-      throw err;
-    }
-
-    const err = new Error('AI provider error. Please try again.');
-    err.statusCode = 502;
-    throw err;
-  }
-
-  const content = json?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('AI response missing content');
-
-  let parsed;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    const err = new Error('AI returned invalid JSON');
-    err.statusCode = 502;
-    throw err;
-  }
-
-  return parsed;
-}
-
 async function geminiChatJson({ messages, model, timeoutMs }) {
   const cfg = getGeminiConfig();
   const apiKey = cfg.apiKey;
   if (!apiKey) {
-    const err = new Error(getMissingKeyMessage('gemini'));
+    const err = new Error(getMissingKeyMessage());
     err.statusCode = 400;
     throw err;
   }
@@ -289,7 +169,7 @@ async function geminiChatJson({ messages, model, timeoutMs }) {
   const base = String(cfg.baseUrl || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
   const endpointFor = (modelName) =>
     `${base}/models/${encodeURIComponent(normalizeGeminiModelName(modelName))}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const ms = Math.max(2000, Number(timeoutMs || process.env.GEMINI_TIMEOUT_MS || process.env.OPENAI_TIMEOUT_MS || 20000));
+  const ms = Math.max(2000, Number(timeoutMs || process.env.GEMINI_TIMEOUT_MS || process.env.AI_TIMEOUT_MS || 20000));
 
   const systemText = messages
     .filter((m) => m?.role === 'system')
@@ -487,7 +367,7 @@ async function geminiChatJson({ messages, model, timeoutMs }) {
     }
 
     if (upstreamStatus === 401 || upstreamStatus === 403) {
-      const err = new Error(getInvalidKeyMessage('gemini'));
+      const err = new Error(getInvalidKeyMessage());
       err.statusCode = 400;
       throw err;
     }
@@ -553,9 +433,7 @@ async function geminiChatJson({ messages, model, timeoutMs }) {
 }
 
 async function aiChatJson({ messages, model, timeoutMs }) {
-  const provider = getAiProvider();
-  if (provider === 'gemini') return geminiChatJson({ messages, model, timeoutMs });
-  return openaiChatJson({ messages, model, timeoutMs });
+  return geminiChatJson({ messages, model, timeoutMs });
 }
 
 router.post('/quiz', requireAuth, async (req, res) => {

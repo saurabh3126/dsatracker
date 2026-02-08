@@ -476,7 +476,7 @@ export default function Questions() {
 
       {selectedQuestion ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
@@ -580,7 +580,7 @@ export default function Questions() {
 
       {practiceQuestion ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
           role="dialog"
           aria-modal="true"
           onClick={(e) => {

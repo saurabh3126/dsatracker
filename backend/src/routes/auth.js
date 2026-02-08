@@ -35,8 +35,8 @@ router.post('/signup', requireMongo, async (req, res) => {
       return res.status(400).json({ error: 'valid email is required' });
     }
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ error: 'password must be at least 6 characters' });
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'password must be at least 8 characters' });
     }
 
     // Signup-only collection requirement

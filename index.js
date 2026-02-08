@@ -68,6 +68,7 @@ const initializeData = async () => {
         const defaultData = {
             questions: [],
             practiceLogs: [],
+            starredQuestions: [],
             topics: {
                 "Sorting Techniques": {
                     "name": "Sorting Techniques",
@@ -375,6 +376,136 @@ app.post('/api/practice', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('Error adding practice log:', error);
         res.status(500).json({ error: 'Error adding practice log' });
+    }
+});
+
+function normalizeStarSource(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function normalizeStarRef(value) {
+    return String(value || '').trim();
+}
+
+function makeStarKey(source, ref) {
+    const s = normalizeStarSource(source);
+    const r = String(normalizeStarRef(ref)).toLowerCase();
+    return s && r ? `${s}:${r}` : '';
+}
+
+// Get starred questions for the current user
+app.get('/api/starred', requireAuth, async (req, res) => {
+    try {
+        const data = await fs.readJson(dataFile);
+        const userId = String(req.user?._id || '');
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const items = Array.isArray(data?.starredQuestions) ? data.starredQuestions : [];
+        const scoped = items
+            .filter((x) => String(x?.userId || '') === userId)
+            .sort((a, b) => new Date(b?.starredAt || b?.createdAt || 0).getTime() - new Date(a?.starredAt || a?.createdAt || 0).getTime());
+
+        return res.json({ items: scoped });
+    } catch (error) {
+        console.error('Error reading starred questions:', error);
+        return res.status(500).json({ error: 'Error reading starred questions' });
+    }
+});
+
+// Toggle starred state for a question
+app.post('/api/starred/toggle', requireAuth, async (req, res) => {
+    try {
+        const data = await fs.readJson(dataFile);
+        const userId = String(req.user?._id || '');
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        if (!data || typeof data !== 'object') {
+            return res.status(500).json({ error: 'Data store not initialized' });
+        }
+
+        if (!Array.isArray(data.starredQuestions)) data.starredQuestions = [];
+
+        const source = normalizeStarSource(req.body?.source);
+        const ref = normalizeStarRef(req.body?.ref);
+        const title = String(req.body?.title || '').trim();
+        const difficulty = String(req.body?.difficulty || '').trim();
+        const link = String(req.body?.link || '').trim();
+
+        if (!source || !ref || !title) {
+            return res.status(400).json({ error: 'source, ref, and title are required' });
+        }
+
+        const questionKey = makeStarKey(source, ref);
+        if (!questionKey) {
+            return res.status(400).json({ error: 'Invalid source/ref' });
+        }
+
+        const list = data.starredQuestions;
+        const idx = list.findIndex((x) => String(x?.userId || '') === userId && String(x?.questionKey || '') === questionKey);
+
+        if (idx >= 0) {
+            const removed = list[idx];
+            list.splice(idx, 1);
+            await fs.writeJson(dataFile, data, { spaces: 2 });
+            return res.json({ starred: false, removedKey: questionKey, removed });
+        }
+
+        const item = {
+            id: Date.now().toString(),
+            userId,
+            questionKey,
+            source,
+            ref,
+            title,
+            difficulty: difficulty || null,
+            link: link || '',
+            notes: '',
+            starredAt: new Date().toISOString(),
+        };
+
+        list.push(item);
+        await fs.writeJson(dataFile, data, { spaces: 2 });
+        return res.status(201).json({ starred: true, item });
+    } catch (error) {
+        console.error('Error toggling starred question:', error);
+        return res.status(500).json({ error: 'Error updating starred questions' });
+    }
+});
+
+// Update notes for a starred question
+app.patch('/api/starred/note', requireAuth, async (req, res) => {
+    try {
+        const data = await fs.readJson(dataFile);
+        const userId = String(req.user?._id || '');
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        if (!data || typeof data !== 'object') {
+            return res.status(500).json({ error: 'Data store not initialized' });
+        }
+
+        if (!Array.isArray(data.starredQuestions)) data.starredQuestions = [];
+
+        const source = normalizeStarSource(req.body?.source);
+        const ref = normalizeStarRef(req.body?.ref);
+        const questionKey = makeStarKey(source, ref);
+        if (!questionKey) return res.status(400).json({ error: 'Invalid source/ref' });
+
+        const notesRaw = String(req.body?.notes ?? '');
+        const notes = notesRaw.trim().slice(0, 1000);
+
+        const list = data.starredQuestions;
+        const idx = list.findIndex((x) => String(x?.userId || '') === userId && String(x?.questionKey || '') === questionKey);
+        if (idx < 0) return res.status(404).json({ error: 'Starred question not found' });
+
+        const prev = list[idx] || {};
+        const next = { ...prev, notes, updatedAt: new Date().toISOString() };
+        list[idx] = next;
+
+        await fs.writeJson(dataFile, data, { spaces: 2 });
+        return res.json({ item: next });
+    } catch (error) {
+        console.error('Error updating starred notes:', error);
+        return res.status(500).json({ error: 'Error updating starred notes' });
     }
 });
 

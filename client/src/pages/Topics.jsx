@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '../lib/api';
+import LoadingIndicator from '../components/LoadingIndicator.jsx';
 
 export default function Topics() {
   const [data, setData] = useState(null);
@@ -46,7 +47,7 @@ export default function Topics() {
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {loading && (
           <div className="col-span-full rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
-            Loading…
+            <LoadingIndicator label="Loading topics..." size="sm" />
           </div>
         )}
 

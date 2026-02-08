@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   XCircle
 } from 'lucide-react';
+import LoadingIndicator from '../components/LoadingIndicator.jsx';
 
 export default function AddQuestion() {
   const navigate = useNavigate();
@@ -110,7 +111,7 @@ export default function AddQuestion() {
         </Link>
 
         <div className="mb-10">
-          <h1 className="text-4xl font-black text-white italic tracking-tight mb-2 uppercase">
+          <h1 className="text-3xl sm:text-4xl font-black text-white italic tracking-tight mb-2 uppercase">
             Add New <span className="text-amber-500">Task</span>
           </h1>
           <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">Initialize a new problem-solving strategy</p>
@@ -118,7 +119,7 @@ export default function AddQuestion() {
 
         <form onSubmit={onSubmit} className="space-y-8">
           {/* Section 1: Core Identity */}
-          <div className="bg-[#1a1b26]/60 backdrop-blur-xl border border-white/5 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
+          <div className="bg-[#1a1b26]/60 backdrop-blur-xl border border-white/5 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-[80px] group-hover:bg-amber-500/10 transition-colors"></div>
             
             <div className="flex items-center gap-3 mb-8">
@@ -331,7 +332,7 @@ export default function AddQuestion() {
               <div className="absolute inset-0 translate-x-[-100%] hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-20deg]"></div>
               <div className="relative flex items-center justify-center gap-3">
                 {saving ? (
-                    <Clock className="w-4 h-4 animate-spin" />
+                  <LoadingIndicator label="" size="sm" className="flex-row gap-0" />
                 ) : (
                     <Plus className="w-5 h-5" />
                 )}
@@ -353,10 +354,7 @@ export default function AddQuestion() {
 
       {saving && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div>
-                  <p className="text-amber-500 font-black uppercase tracking-widest text-[10px] animate-pulse">Syncing with system...</p>
-              </div>
+              <LoadingIndicator label="Syncing with system..." size="lg" />
           </div>
       )}
     </div>

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { RefreshCcw, Search, Calendar, ChevronDown, Clock, Hash } from 'lucide-react';
-import { apiGet, apiPost } from '../lib/api.js';
+import { apiGet, apiPatch, apiPost } from '../lib/api.js';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useStarred } from '../auth/StarredContext.jsx';
+import LoadingIndicator from '../components/LoadingIndicator.jsx';
 
 function formatIstDateTime(ms) {
   if (!ms) return '';
@@ -40,6 +42,7 @@ function formatISTMonthLabel(date) {
 
 export default function SolvedQuestions() {
   const { isLoggedIn } = useAuth();
+  const { isStarred, toggleStar } = useStarred();
 
   const PAGE_SIZE = 10;
 
@@ -76,6 +79,10 @@ export default function SolvedQuestions() {
 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  const [editingNoteId, setEditingNoteId] = useState('');
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const total = useMemo(() => {
     return items.length + monthlyRevisionItems.length;
@@ -236,20 +243,15 @@ export default function SolvedQuestions() {
       return;
     }
 
-    const providerFromStatus = (status) => String(status?.provider || 'openai').toLowerCase();
-    const keyNameForProvider = (provider) => (provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY');
-
     try {
       const status = await apiGet('/api/ai/status');
       setAiStatus(status);
-      const provider = providerFromStatus(status);
-      const keyName = keyNameForProvider(provider);
       if (status?.configured === false) {
-        setQuizError(`${keyName} is not set on the server. Add it to the repo-root .env and restart the server.`);
+        setQuizError('GEMINI_API_KEY is not set on the server. Add it to the repo-root .env and restart the server.');
         return;
       }
       if (status?.looksValid === false) {
-        setQuizError(`${keyName} looks invalid. Update the key in the repo-root .env and restart the server.`);
+        setQuizError('GEMINI_API_KEY looks invalid. Update the key in the repo-root .env and restart the server.');
         return;
       }
     } catch {
@@ -265,7 +267,7 @@ export default function SolvedQuestions() {
       const json = await apiPost('/api/ai/quiz', { slug, title: item?.title || '' });
       setQuizData(json);
     } catch (e) {
-      setQuizError(e?.message || 'Failed to generate quiz');
+      setQuizError(e?.message || 'Failed to load quiz');
     } finally {
       setQuizLoading(false);
     }
@@ -282,10 +284,10 @@ export default function SolvedQuestions() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="mx-auto w-full max-w-7xl px-4 py-12 flex-1">
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-12 flex-1">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-12">
           <div>
-            <h1 className="text-4xl font-black tracking-tight text-white mb-2">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white mb-2">
               Solved <span className="text-amber-500">Question</span>
             </h1>
             <div className="flex items-center gap-3 text-slate-400">
@@ -294,13 +296,13 @@ export default function SolvedQuestions() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">History</div>
               
               <div className="relative" ref={monthDropdownRef}>
                 <div 
                   onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
-                  className={`bg-[#05070a] border border-white/10 px-5 py-2.5 text-sm cursor-pointer flex items-center justify-between gap-3 transition-all duration-200 min-w-[200px] ${isMonthDropdownOpen ? 'rounded-t-[1.5rem] rounded-b-none border-amber-500 ring-1 ring-amber-500/30' : 'rounded-full hover:border-white/20'}`}
+                  className={`bg-[#05070a] border border-white/10 px-5 py-2.5 text-sm cursor-pointer flex items-center justify-between gap-3 transition-all duration-200 w-full min-w-0 sm:w-auto sm:min-w-[200px] ${isMonthDropdownOpen ? 'rounded-t-[1.5rem] rounded-b-none border-amber-500 ring-1 ring-amber-500/30' : 'rounded-full hover:border-white/20'}`}
                 >
                   <span className="font-medium text-white italic">
                     {monthGroups.find(g => g.key === selectedMonthKey)?.label || 'Select Month'}
@@ -349,7 +351,11 @@ export default function SolvedQuestions() {
                 }
               }}
             >
-              <RefreshCcw className={`h-4 w-4 transition-transform group-hover:rotate-180 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? (
+                <LoadingIndicator label="" size="sm" className="flex-row gap-0" />
+              ) : (
+                <RefreshCcw className="h-4 w-4 transition-transform group-hover:rotate-180" />
+              )}
               Refresh
             </button>
           </div>
@@ -379,13 +385,13 @@ export default function SolvedQuestions() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-amber-500/20 border-t-amber-500"></div>
+          <div className="py-20 opacity-80">
+            <LoadingIndicator label="Loading solved questions..." size="lg" />
           </div>
         ) : (
           <div className="space-y-12">
             {!visibleGroups.length ? (
-              <div className="rounded-3xl border border-dashed border-white/10 p-20 text-center">
+              <div className="rounded-3xl border border-dashed border-white/10 p-10 sm:p-20 text-center">
                 <div className="text-slate-500 font-bold italic">No solved questions found for this period.</div>
               </div>
             ) : (
@@ -447,7 +453,7 @@ export default function SolvedQuestions() {
                       {pageItems.map((it) => (
                         <div
                           key={String(it?._id || it?.questionKey || it?.ref)}
-                          className="group relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#1C1C2E]/40 p-6 backdrop-blur-xl transition-all duration-300 hover:border-amber-500/50 hover:bg-[#1C1C2E]/60"
+                          className="group relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#1C1C2E]/40 p-5 sm:p-6 backdrop-blur-xl transition-all duration-300 hover:border-amber-500/50 hover:bg-[#1C1C2E]/60"
                         >
                           {/* Shimmer Effect */}
                           <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
@@ -484,6 +490,41 @@ export default function SolvedQuestions() {
 
                               <button
                                 type="button"
+                                onClick={() =>
+                                  toggleStar({
+                                    source: it.source,
+                                    ref: it.ref,
+                                    title: it.title,
+                                    difficulty: it.difficulty || null,
+                                    link: it.link || '',
+                                  })
+                                }
+                                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/10"
+                                title={isStarred(it.source, it.ref) ? 'Unstar' : 'Star'}
+                              >
+                                <i className={`${isStarred(it.source, it.ref) ? 'fas' : 'far'} fa-star ${isStarred(it.source, it.ref) ? 'text-amber-500' : ''}`} />
+                              </button>
+
+                              {!it?.kind ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const id = String(it?._id || '');
+                                    if (!id) return;
+                                    setEditingNoteId(id);
+                                    setNoteDraft(String(it?.notes || ''));
+                                    setMessage('');
+                                    setError('');
+                                  }}
+                                  className="flex items-center gap-2 rounded-2xl bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/10"
+                                  title="Notes"
+                                >
+                                  Notes
+                                </button>
+                              ) : null}
+
+                              <button
+                                type="button"
                                 onClick={() => {
                                   setQuizItem({ title: it.title, ref: it.ref, solvedAt: it.solvedAt });
                                   setQuizError('');
@@ -506,6 +547,64 @@ export default function SolvedQuestions() {
                               </button>
                             </div>
                           </div>
+
+                          {!it?.kind && String(it?._id || '') && editingNoteId === String(it._id) ? (
+                            <div className="relative mt-4 rounded-3xl border border-white/10 bg-black/20 p-4">
+                              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Notes</div>
+                              <textarea
+                                value={noteDraft}
+                                onChange={(e) => setNoteDraft(e.target.value)}
+                                rows={3}
+                                maxLength={1000}
+                                className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-[#0b0f1a]/60 p-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-amber-500/40"
+                                placeholder="Write a short note..."
+                              />
+
+                              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                  {String(noteDraft || '').length}/1000
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingNoteId('');
+                                      setNoteDraft('');
+                                    }}
+                                    className="rounded-2xl bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-300 ring-1 ring-white/10 hover:bg-white/10"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={noteSaving}
+                                    onClick={async () => {
+                                      try {
+                                        setNoteSaving(true);
+                                        const id = String(it._id);
+                                        const json = await apiPatch(`/api/solved/${encodeURIComponent(id)}/notes`, { notes: noteDraft });
+                                        const next = json?.item;
+                                        if (next) {
+                                          setItems((prev) => (Array.isArray(prev) ? prev.map((x) => (String(x?._id) === id ? { ...x, notes: next.notes || '' } : x)) : []));
+                                        }
+                                        setEditingNoteId('');
+                                        setNoteDraft('');
+                                        setMessage('Notes saved');
+                                      } catch (e) {
+                                        setError(e?.message || 'Failed to save notes');
+                                      } finally {
+                                        setNoteSaving(false);
+                                      }
+                                    }}
+                                    className="rounded-2xl bg-amber-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-black hover:bg-amber-400 disabled:opacity-40"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -558,9 +657,8 @@ export default function SolvedQuestions() {
 
               <div className="mt-8">
                 {quizLoading && (
-                  <div className="flex flex-col items-center justify-center py-12 gap-4">
-                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500/20 border-t-amber-500"></div>
-                    <div className="text-sm font-bold text-slate-500 uppercase tracking-widest">Generating Quiz Details...</div>
+                  <div className="py-12 opacity-80">
+                    <LoadingIndicator label="Loading quiz..." size="md" />
                   </div>
                 )}
                 
@@ -572,7 +670,7 @@ export default function SolvedQuestions() {
 
                 {aiStatus?.configured === false && (
                   <div className="mb-6 rounded-xl bg-amber-500/10 p-4 border border-amber-500/20 text-xs font-bold text-amber-400">
-                    AI CONFIG REQUIRED: Please set {String(aiStatus?.provider || 'openai').toUpperCase()}_API_KEY in your environment.
+                    AI CONFIG REQUIRED: Please set GEMINI_API_KEY in your environment.
                   </div>
                 )}
 
@@ -583,7 +681,7 @@ export default function SolvedQuestions() {
                       className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-white/10 hover:text-white transition-all"
                       onClick={() => generateQuizFor(quizItem)}
                     >
-                      Regenerate
+                      Reload
                     </button>
                    </div>
                 )}

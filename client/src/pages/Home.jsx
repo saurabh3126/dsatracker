@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import homeCss from '../legacy/home.css?raw';
 import { useLegacyStyle } from '../legacy/useLegacyStyle';
 import { useAuth } from '../auth/AuthContext.jsx';
+import LoadingIndicator from '../components/LoadingIndicator.jsx';
 import { apiGet, apiPost } from '../lib/api.js';
 import {
   CONTEST_SCHEDULE_TEXT,
@@ -655,7 +656,7 @@ export default function Home() {
                   }}
                 >
                   {feedbackStatus === 'sending' ? (
-                    <><i className="fas fa-spinner fa-spin"></i> Sending...</>
+                    <><LoadingIndicator label="" size="sm" className="flex-row gap-0" /> Sending...</>
                   ) : feedbackStatus === 'sent' ? (
                     <><i className="fas fa-check-circle"></i> Feedback Received!</>
                   ) : feedbackStatus === 'error' ? (

@@ -212,17 +212,17 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
     if (Number.isFinite(lastCompletedAtMs) && lastCompletedAtMs >= todayStart) continue;
 
     const completedAt = new Date(acceptedMs);
-    const tomorrow = new Date(completedAt);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-
     ops.push({
       updateOne: {
         filter: { _id: item._id, userId },
         update: {
           $set: {
             lastCompletedAt: completedAt,
-            bucket: 'today',
-            bucketDueAt: endOfUtcDay(tomorrow),
+            // After completing Today's task, move it into the Weekly rotation.
+            bucket: 'week',
+            bucketDueAt: weeklyDueAtAfterComplete(completedAt),
+            weekCompletedAt: null,
+            monthCompletedAt: null,
             updatedAt: new Date(),
           },
         },
@@ -235,9 +235,9 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
   return { updated: result?.modifiedCount || 0, reason: 'ok' };
 }
 
-async function rolloverOverdueTodayToWeek({ userId }) {
+async function rolloverOverdueTodayToNextDay({ userId }) {
   // At the task-day boundary (5:30 AM IST == midnight UTC), any remaining
-  // Today bucket items should move into Weekly if not completed.
+  // Today bucket items that were not completed should carry over to the next day.
   // We detect "overdue" Today items by comparing their dueAt to the start of
   // the current UTC day.
   const now = new Date();
@@ -256,6 +256,57 @@ async function rolloverOverdueTodayToWeek({ userId }) {
   const ids = overdueToday.map((x) => x._id);
   const result = await RevisionItem.updateMany(
     { userId, _id: { $in: ids } },
+    {
+      $set: {
+        bucket: 'today',
+        // Carry forward: make it due by the end of the current UTC day.
+        bucketDueAt: computeBucketDueAt('today', now),
+        updatedAt: new Date(),
+      },
+    },
+  );
+
+  return { moved: result?.modifiedCount || 0 };
+}
+
+async function rolloverOverdueMonthToNextMonth({ userId }) {
+  // Month bucket items are due at end-of-month. If the month has rolled over and
+  // the user didn't complete them, keep them in the Month bucket and extend the
+  // due date to the end of the current month.
+  const now = new Date();
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const query = {
+    userId,
+    bucket: 'month',
+    monthCompletedAt: null,
+    $or: [{ bucketDueAt: { $lt: startOfThisMonth } }, { bucketDueAt: null }],
+  };
+
+  const result = await RevisionItem.updateMany(query, {
+    $set: {
+      bucket: 'month',
+      bucketDueAt: computeBucketDueAt('month', now),
+      updatedAt: new Date(),
+    },
+  });
+
+  return { moved: result?.modifiedCount || 0 };
+}
+
+async function rolloverOverdueWeekToNextWeek({ userId }) {
+  // Weekly reset boundary is Sunday 5:30 AM IST == Sunday 00:00 UTC.
+  // If a Weekly item is overdue (its dueAt is before the start of the current UTC day),
+  // keep it in Week but extend it to the next upcoming Sunday.
+  const now = new Date();
+  const startUtcMs = startOfUtcDay(now).getTime();
+
+  const result = await RevisionItem.updateMany(
+    {
+      userId,
+      bucket: 'week',
+      bucketDueAt: { $lt: new Date(startUtcMs) },
+    },
     {
       $set: {
         bucket: 'week',
@@ -315,9 +366,23 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
     // Non-fatal: summary still works if LeetCode is unavailable.
   }
 
-  // At/after the reset boundary: roll any leftover Today items into Weekly.
+  // At/after the reset boundary: carry leftover Today items to the next day.
   try {
-    await rolloverOverdueTodayToWeek({ userId });
+    await rolloverOverdueTodayToNextDay({ userId });
+  } catch (e) {
+    // Non-fatal.
+  }
+
+  // Weekly boundary rollover: carry overdue weekly items forward.
+  try {
+    await rolloverOverdueWeekToNextWeek({ userId });
+  } catch (e) {
+    // Non-fatal.
+  }
+
+  // Month boundary rollover: carry unfinished monthly items forward.
+  try {
+    await rolloverOverdueMonthToNextMonth({ userId });
   } catch (e) {
     // Non-fatal.
   }
@@ -533,11 +598,12 @@ router.post('/items/:id/complete', requireMongo, requireAuth, async (req, res) =
   item.lastCompletedAt = now;
 
   if (scope === 'today') {
-    // After completing today, schedule it for tomorrow by default.
-    const tomorrow = new Date(now);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    item.bucket = 'today';
-    item.bucketDueAt = endOfUtcDay(tomorrow);
+    // After completing Today's task, move it into the Weekly rotation.
+    // If completed Mon-Thu -> due this Sunday, else due next Sunday.
+    item.bucket = 'week';
+    item.bucketDueAt = weeklyDueAtAfterComplete(now);
+    item.weekCompletedAt = null;
+    item.monthCompletedAt = null;
     await item.save();
     return res.json({ item });
   }

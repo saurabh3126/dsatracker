@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Bell, Code2, Smile, ChevronDown, CheckCircle2, Clock, Calendar } from 'lucide-react';
+import { Bell, Code2, Smile, ChevronDown, CheckCircle2, Clock, Calendar, Menu } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getNextContestIST, isContestTomorrowIST } from '../utils/contestSchedule.js';
 
@@ -147,6 +147,7 @@ function NavItem({ to, children }) {
 function UserMenu({ name, variant = 'desktop' }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
+  const isMobile = variant === 'mobile';
 
   useEffect(() => {
     function onDocMouseDown(e) {
@@ -173,13 +174,30 @@ function UserMenu({ name, variant = 'desktop' }) {
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        className={`${navLinkBase} inline-flex items-center gap-2.5 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ${open ? 'bg-white/10 ring-amber-500/30' : ''}`}
+        className={
+          isMobile
+            ? `inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ${
+                open ? 'bg-white/10 ring-amber-500/30' : ''
+              }`
+            : `${navLinkBase} inline-flex items-center gap-2.5 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ${
+                open ? 'bg-white/10 ring-amber-500/30' : ''
+              }`
+        }
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
+        title={name ? `Hi ${name}` : 'User menu'}
       >
-        <span className="font-bold tracking-tight text-slate-200">Hi {name || 'User'}</span>
-        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180 text-amber-500' : ''}`} />
+        {isMobile ? (
+          <span className="text-xs font-black uppercase tracking-widest text-slate-200">
+            {String(name || 'U').trim().slice(0, 1) || 'U'}
+          </span>
+        ) : (
+          <>
+            <span className="font-bold tracking-tight text-slate-200">Hi {name || 'User'}</span>
+            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180 text-amber-500' : ''}`} />
+          </>
+        )}
       </button>
 
       {open ? (
@@ -198,6 +216,7 @@ function UserMenu({ name, variant = 'desktop' }) {
                 { to: '/revision', label: 'Revision' },
                 { to: '/today', label: "Today's Task" },
                 { to: '/solved', label: 'Solved Question' },
+                { to: '/starred', label: 'Starred Questions' },
                 { to: '/topics', label: 'Topics' },
               ].map((link) => (
                 <NavLink
@@ -232,6 +251,18 @@ function UserMenu({ name, variant = 'desktop' }) {
               History
             </NavLink>
             <NavLink
+              to="/starred"
+              role="menuitem"
+              className={({ isActive }) =>
+                `block px-6 py-4 text-[10px] font-black tracking-widest uppercase transition-all ${
+                  isActive ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`
+              }
+              onClick={() => setOpen(false)}
+            >
+              Starred
+            </NavLink>
+            <NavLink
               to="/logout"
               role="menuitem"
               className="block px-6 py-4 text-[10px] font-black tracking-widest uppercase text-rose-400 transition-all hover:bg-rose-500/10 hover:text-rose-300"
@@ -242,6 +273,98 @@ function UserMenu({ name, variant = 'desktop' }) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MobileNavMenu({ isLoggedIn }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      if (!open) return;
+      const root = rootRef.current;
+      const menu = menuRef.current;
+      const target = e.target;
+      if (root && root.contains(target)) return;
+      if (menu && menu.contains(target)) return;
+      setOpen(false);
+    }
+
+    function onKeyDown(e) {
+      if (!open) return;
+      if (e.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  const links = [
+    { to: '/', label: 'Home', always: true },
+    { to: '/questions', label: 'Questions', always: true },
+    { to: '/revision', label: 'Revision', always: false },
+    { to: '/today', label: "Today's Task", always: false },
+    { to: '/solved', label: 'Solved Questions', always: false },
+    { to: '/starred', label: 'Starred Questions', always: false },
+    { to: '/login', label: 'Login', always: !isLoggedIn },
+    { to: '/logout', label: 'Logout', always: isLoggedIn },
+  ].filter((l) => l.always || (isLoggedIn && l.always === false));
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        className={
+          'inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ' +
+          (open ? 'bg-white/10 ring-amber-500/30' : '')
+        }
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        title="Menu"
+      >
+        <Menu className="h-4 w-4 text-slate-200" />
+      </button>
+
+      {open
+        ? createPortal(
+            <div className="fixed inset-0 z-[650]" aria-hidden={!open}>
+              <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+              <div
+                ref={menuRef}
+                role="menu"
+                className="fixed left-4 right-4 top-[72px] max-h-[calc(100vh-96px)] overflow-auto overscroll-contain rounded-[1.5rem] border border-white/10 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 duration-200"
+              >
+                <div className="flex flex-col py-1">
+                  {links.map((link) => (
+                    <NavLink
+                      key={link.to}
+                      to={link.to}
+                      role="menuitem"
+                      className={({ isActive }) =>
+                        `block px-6 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                          isActive ? 'bg-amber-500/10 text-amber-500' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                        }`
+                      }
+                      onClick={() => setOpen(false)}
+                      end={link.to === '/'}
+                    >
+                      {link.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
@@ -301,9 +424,9 @@ function NotificationsMenu({ items, onOpenChange, variant = 'desktop' }) {
   }, [open]);
 
   const btnClass =
-    navLinkBase +
-    ' inline-flex items-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ' +
-    (variant === 'mobile' ? 'px-4 py-2.5' : '') +
+    (variant === 'mobile'
+      ? 'inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 '
+      : navLinkBase + ' inline-flex items-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition-all duration-300 ') +
     (open ? ' bg-white/10 ring-amber-500/30' : '');
 
   return (
@@ -324,7 +447,13 @@ function NotificationsMenu({ items, onOpenChange, variant = 'desktop' }) {
             </span>
           )}
         </div>
-        <span className={`text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${open ? 'text-amber-500' : 'text-slate-200'}`}>Alerts</span>
+        {variant === 'mobile' ? null : (
+          <span
+            className={`text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${open ? 'text-amber-500' : 'text-slate-200'}`}
+          >
+            Alerts
+          </span>
+        )}
       </button>
 
       {open ? (
@@ -332,15 +461,14 @@ function NotificationsMenu({ items, onOpenChange, variant = 'desktop' }) {
           role="menu"
           className="absolute right-0 mt-3 w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-[2rem] border border-white/10 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl z-[600] animate-in fade-in slide-in-from-top-2 duration-200"
         >
-          <div className="border-b border-white/10 px-8 py-5">
+          <div className="border-b border-white/10 px-5 py-4 sm:px-8 sm:py-5">
             <p className="text-xs font-black uppercase tracking-widest text-white">Recent notifications</p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Last 10 closed popups</p>
           </div>
 
           <div className="max-h-[360px] overflow-auto overscroll-contain">
             {items && items.length ? (
               items.map((n) => (
-                <div key={n.id} className="border-b border-white/5 px-8 py-5 last:border-b-0 transition-colors hover:bg-white/5">
+                <div key={n.id} className="border-b border-white/5 px-5 py-4 sm:px-8 sm:py-5 last:border-b-0 transition-colors hover:bg-white/5">
                   <div className="flex items-start justify-between gap-4">
                     <p className="text-sm font-bold text-slate-100">{n.title || 'Reminder'}</p>
                     <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/5 px-2 py-1 text-[10px] font-bold text-slate-400">
@@ -354,7 +482,7 @@ function NotificationsMenu({ items, onOpenChange, variant = 'desktop' }) {
                 </div>
               ))
             ) : (
-              <div className="px-8 py-10 text-center">
+              <div className="px-5 py-8 sm:px-8 sm:py-10 text-center">
                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">No notifications yet.</p>
               </div>
             )}
@@ -739,16 +867,16 @@ export default function Navbar() {
           <span className="text-lg font-bold tracking-tight text-white">DSA Tracker</span>
         </Link>
 
-        <div className="flex items-center gap-5 sm:hidden">
+        <div className="flex items-center gap-3 sm:hidden">
           {isLoggedIn ? (
             <a
               href={potdHref}
               target="_blank"
               rel="noreferrer"
-              className={navLinkBase + ' inline-flex items-center gap-2 ' + potdUi.pill + ' !px-4.5 !py-2.5'}
+              className={navLinkBase + ' inline-flex items-center gap-1.5 ' + potdUi.pill + ' !px-3 !py-2'}
               title={potdTitle ? `POTD: ${potdTitle}` : 'POTD'}
             >
-              <span className={'text-xs font-semibold tracking-wide ' + potdUi.text}>POTD</span>
+              <span className={'text-[10px] font-bold tracking-wide ' + potdUi.text}>POTD</span>
               {potdUi.showSmile ? <Smile className="h-4 w-4" aria-label="Solved" /> : null}
               <span className={'h-2 w-2 rounded-full ' + potdUi.dot} />
             </a>
@@ -756,7 +884,7 @@ export default function Navbar() {
 
           {isLoggedIn ? <NotificationsMenu items={notifications} variant="mobile" /> : null}
 
-          {isLoggedIn ? <UserMenu name={user?.name} variant="mobile" /> : <NavItem to="/login">Login</NavItem>}
+          <MobileNavMenu isLoggedIn={isLoggedIn} />
         </div>
 
         <nav className="hidden items-center gap-5 sm:flex">

@@ -27,16 +27,24 @@ function toUserFacingErrorMessage(res, json) {
   }
 
   // Never leak internal/server implementation details to end users.
-  // Keep 4xx messages (validation/auth) as-is, but sanitize 5xx (infra/bugs).
-  const looksInternal =
-    status >= 500 ||
-    /mongodb|mongoose|econn|timed out|timeout|stack|cast to|validationerror/i.test(serverError);
+  // Keep 4xx messages (validation/auth) as-is.
+  // For 5xx, only show allow-listed, user-actionable messages.
+  const looksInternal = /mongodb|mongoose|econn|timed out|timeout|stack|cast to|validationerror/i.test(serverError);
+  const safe5xxAllowList = /failed to fetch leetcode|ai did not return exactly 5 valid mcqs|ai returned invalid json|ai provider error|ai request timed out|rate limited/i;
 
-  if (looksInternal) {
+  if (status >= 500) {
+    if (serverError && safe5xxAllowList.test(serverError) && !looksInternal) {
+      return serverError;
+    }
     if (serverError) {
       // Still keep the real error for dev debugging.
       console.error('API request failed:', { status, serverError });
     }
+    return 'Something went wrong. Please try again.';
+  }
+
+  if (looksInternal) {
+    if (serverError) console.error('API request failed:', { status, serverError });
     return 'Something went wrong. Please try again.';
   }
 
