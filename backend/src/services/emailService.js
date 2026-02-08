@@ -1,5 +1,8 @@
 const nodemailer = require('nodemailer');
-const dns = require('dns');
+
+const WEB3FORMS_ACCESS_KEY = String(process.env.WEB3FORMS_ACCESS_KEY || '').trim();
+const WEB3FORMS_TIMEOUT_MS = Number(process.env.WEB3FORMS_TIMEOUT_MS || 15000);
+const WEB3FORMS_DEFAULT_FROM_NAME = String(process.env.WEB3FORMS_FROM_NAME || 'DSA Tracker').trim();
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim();
 
@@ -13,6 +16,83 @@ const SMTP_FROM = (process.env.SMTP_FROM || '').trim() || SMTP_USER || 'noreply@
 
 let cachedTransporter;
 let cachedTransporterIpv4;
+
+function isWeb3FormsConfigured() {
+  return Boolean(WEB3FORMS_ACCESS_KEY);
+}
+
+function stripHtmlToText(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>(\r?\n)?/gi, '\n')
+    .replace(/<\/p\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function normalizeReplyTo(replyTo) {
+  if (!replyTo) return null;
+  if (typeof replyTo === 'string') {
+    const email = replyTo.trim();
+    return email ? { email } : null;
+  }
+  const email = String(replyTo?.email || '').trim();
+  const name = String(replyTo?.name || '').trim();
+  if (!email) return null;
+  return name ? { email, name } : { email };
+}
+
+async function sendEmailViaWeb3Forms({ subject, htmlContent, fromName, replyTo }) {
+  if (!isWeb3FormsConfigured()) return null;
+  if (typeof fetch !== 'function') {
+    throw new Error('Web3Forms requires global fetch (Node 18+).');
+  }
+
+  const normalizedReplyTo = normalizeReplyTo(replyTo);
+
+  const payload = {
+    access_key: WEB3FORMS_ACCESS_KEY,
+    subject: String(subject || '').trim() || 'New submission',
+    from_name: String(fromName || WEB3FORMS_DEFAULT_FROM_NAME || 'Notifications').trim(),
+    // Web3Forms uses `email` as the reply-to by default.
+    email: normalizedReplyTo?.email || '',
+    name: normalizedReplyTo?.name || String(fromName || '').trim() || 'User',
+    message: stripHtmlToText(htmlContent),
+  };
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), Math.max(2000, WEB3FORMS_TIMEOUT_MS));
+
+  try {
+    const res = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = String(json?.message || res.statusText || 'Web3Forms request failed').trim();
+      const err = new Error(msg);
+      err.status = res.status;
+      err.provider = 'web3forms';
+      throw err;
+    }
+    return json;
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 function createTransporter({ family } = {}) {
   const transport = {
@@ -34,13 +114,6 @@ function createTransporter({ family } = {}) {
   const fam = Number(family);
   if (fam === 4 || fam === 6) {
     transport.family = fam;
-
-    // Force DNS resolution to the requested family. This avoids cases where
-    // the runtime prefers IPv6 but the network has no IPv6 route (common on some hosts).
-    transport.lookup = (hostname, options, callback) => {
-      const opts = typeof options === 'object' && options ? options : {};
-      return dns.lookup(hostname, { ...opts, family: fam, all: false }, callback);
-    };
   }
 
   return nodemailer.createTransport(transport);
@@ -67,51 +140,37 @@ function getTransporterIpv4() {
 
 function shouldRetryWithIpv4(err) {
   const code = String(err?.code || '').toUpperCase();
-  const syscall = String(err?.syscall || '').toLowerCase();
-  const errno = Number(err?.errno);
-  const address = String(err?.address || '');
-  const msg = String(err?.message || '');
-  const msgUpper = msg.toUpperCase();
+  if (!code) return false;
 
-  // If DNS picked an IPv6 address but the runtime has no IPv6 route,
-  // Node frequently surfaces this as code=ESOCKET but message includes ENETUNREACH.
-  if (msgUpper.includes('ENETUNREACH')) return true;
-
-  // Typical direct code.
+  // Typical when smtp.gmail.com resolves to an IPv6 address but IPv6 is unavailable.
   if (code === 'ENETUNREACH') return true;
 
-  // -101 is commonly "Network is unreachable" on Linux.
-  if (errno === -101) return true;
-
-  // Only retry connect-level failures (avoid masking auth/SMTP protocol errors).
-  const isConnectFailure = syscall === 'connect' || String(err?.command || '').toUpperCase() === 'CONN';
-  if (!isConnectFailure) return false;
-
-  // Transient network/DNS errors where IPv4-only retry can help.
+  // Other transient network/DNS errors where IPv4-only retry can help.
   if (code === 'EAI_AGAIN' || code === 'ETIMEDOUT') return true;
-
-  // If we were given an IPv6 address (contains ':'), IPv4 retry is often useful.
-  if (address.includes(':')) return true;
-
-  // Nodemailer uses ESOCKET for low-level socket/connect failures.
-  if (code === 'ESOCKET') return true;
 
   return false;
 }
 
 /**
- * Sends an email using SMTP (Nodemailer)
+ * Sends an email using Web3Forms (preferred when configured) or SMTP fallback.
  * @param {Object} options
- * @param {string} options.to - Recipient email
+ * @param {string} options.to - Recipient email (SMTP only; Web3Forms delivers to inbox tied to access key)
  * @param {string} options.subject - Email subject
  * @param {string} options.htmlContent - Email body in HTML
+ * @param {string|{email:string,name?:string}} [options.replyTo] - Reply-To address
+ * @param {string} [options.fromName] - Display sender name (Web3Forms from_name)
  */
-const sendEmail = async ({ to, subject, htmlContent }) => {
+const sendEmail = async ({ to, subject, htmlContent, replyTo, fromName }) => {
+  if (isWeb3FormsConfigured()) {
+    return sendEmailViaWeb3Forms({ subject, htmlContent, replyTo, fromName });
+  }
+
   const transporter = getTransporter();
   if (!transporter) {
     console.warn(
       'SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS). Skipping email sending.',
       {
+        hasWeb3FormsKey: Boolean(WEB3FORMS_ACCESS_KEY),
         hasHost: Boolean(SMTP_HOST),
         hasUser: Boolean(SMTP_USER),
         hasPass: Boolean(SMTP_PASS),
@@ -127,6 +186,13 @@ const sendEmail = async ({ to, subject, htmlContent }) => {
     html: htmlContent,
   };
 
+  const normalizedReplyTo = normalizeReplyTo(replyTo);
+  if (normalizedReplyTo?.email) {
+    payload.replyTo = normalizedReplyTo.name
+      ? `${normalizedReplyTo.name} <${normalizedReplyTo.email}>`
+      : normalizedReplyTo.email;
+  }
+
   try {
     return await transporter.sendMail(payload);
   } catch (error) {
@@ -136,11 +202,7 @@ const sendEmail = async ({ to, subject, htmlContent }) => {
       try {
         const transporterV4 = getTransporterIpv4();
         if (transporterV4) {
-          const info = await transporterV4.sendMail(payload);
-
-          // If IPv4 works, prefer it for subsequent sends in this process.
-          cachedTransporter = transporterV4;
-          return info;
+          return await transporterV4.sendMail(payload);
         }
       } catch (retryErr) {
         console.error('SMTP Email Error (IPv4 retry failed):', retryErr);
@@ -155,7 +217,7 @@ const sendEmail = async ({ to, subject, htmlContent }) => {
 
 /**
  * Sends feedback notification to admin
- * @param {Object} feedback - { type, message, userId }
+ * @param {Object} feedback - { type, message, userId, userName, userEmail }
  */
 const sendFeedbackNotification = async (feedback) => {
   if (!ADMIN_EMAIL) {
@@ -163,10 +225,15 @@ const sendFeedbackNotification = async (feedback) => {
     return;
   }
 
+  const userName = String(feedback?.userName || '').trim();
+  const userEmail = String(feedback?.userEmail || '').trim();
+  const replyTo = userEmail ? { email: userEmail, name: userName } : null;
+
   const subject = `New ${feedback.type.toUpperCase()} from DSA Tracker`;
   const htmlContent = `
     <h3>New Feedback Received</h3>
     <p><strong>Type:</strong> ${feedback.type}</p>
+    <p><strong>From:</strong> ${userName || 'User'}${userEmail ? ` &lt;${userEmail}&gt;` : ''}</p>
     <p><strong>Message:</strong></p>
     <div style="padding: 15px; background: #f4f4f4; border-radius: 5px;">
       ${feedback.message.replace(/\n/g, '<br>')}
@@ -177,7 +244,9 @@ const sendFeedbackNotification = async (feedback) => {
   return sendEmail({
     to: ADMIN_EMAIL,
     subject,
-    htmlContent
+    htmlContent,
+    replyTo,
+    fromName: userName || WEB3FORMS_DEFAULT_FROM_NAME,
   });
 };
 

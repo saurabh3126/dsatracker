@@ -39,7 +39,9 @@ router.post('/', requireAuth, async (req, res) => {
       await sendFeedbackNotification({
         type,
         message,
-        userId: req.user?._id
+        userId: req.user?._id,
+        userName: req.user?.name,
+        userEmail: req.user?.email,
       });
       console.log('Feedback email sent');
     } catch (emailErr) {
