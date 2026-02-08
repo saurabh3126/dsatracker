@@ -5,7 +5,7 @@ const { requireAuth } = require('../middleware/requireAuth');
 const { sendFeedbackNotification } = require('../services/emailService');
 
 // POST /api/feedback
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { type, message } = req.body;
     

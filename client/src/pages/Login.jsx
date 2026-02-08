@@ -51,7 +51,6 @@ export default function Login() {
             </div>
           </div>
 
-          <p className="mt-3 text-sm text-slate-300">Email + password only. Usernames are collected at signup.</p>
 
           {error ? (
             <div className="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
