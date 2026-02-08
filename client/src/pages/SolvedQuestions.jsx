@@ -319,7 +319,7 @@ export default function SolvedQuestions() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col">
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-12 flex-1">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between mb-12">
           <div>

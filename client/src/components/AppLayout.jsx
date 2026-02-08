@@ -12,14 +12,14 @@ export default function AppLayout() {
     <div
       className={
         (isAdd ? 'dsa-bg-add' : 'dsa-bg') +
-        ' flex min-h-screen flex-col overflow-x-hidden bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900'
+        ' flex min-h-[100dvh] flex-col overflow-x-hidden bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900'
       }
     >
       <Navbar />
       <main
         className={
           (isHome ? 'pb-0' : isAuth ? 'pb-0' : 'pb-16') +
-          ' flex-1 pt-[72px]' +
+          ' flex-1' +
           (isAuth ? ' flex items-center' : '')
         }
       >

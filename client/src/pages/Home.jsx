@@ -271,7 +271,7 @@ export default function Home() {
   };
 
   return (
-    <div className="home-page flex flex-col min-h-screen">
+    <div className="home-page flex flex-col">
       <div className="background-shapes">
         <div className="shape shape-1"></div>
         <div className="shape shape-2"></div>

@@ -438,7 +438,7 @@ export default function QuestionsCatalog() {
   }, [selectedItem]);
 
   return (
-    <div className="flex flex-col min-h-screen p-4 sm:p-8">
+    <div className="flex flex-col p-4 sm:p-8">
       <div className="max-w-[1400px] mx-auto flex-1">
         {/* Modern Tabs Header */}
         <div className="flex justify-center mb-8">
