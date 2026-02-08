@@ -388,14 +388,95 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
   // - Auto-marking Today bucket items done
   // - Returning "last submitted on LeetCode" timestamps per item
   let latestAcceptedMsBySlug = new Map();
+  let recentAcceptedSubmissions = [];
   try {
     const username = req.user?.leetcodeUsername;
     if (username) {
       const submissions = await fetchRecentAcceptedSubmissions({ username, limit: 120 });
+      recentAcceptedSubmissions = Array.isArray(submissions) ? submissions : [];
       latestAcceptedMsBySlug = latestAcceptedMsBySlugFromSubmissions(submissions);
     }
   } catch (e) {
     latestAcceptedMsBySlug = new Map();
+    recentAcceptedSubmissions = [];
+  }
+
+  // Auto-add newly solved LeetCode questions into Weekly Revision.
+  // This is intentionally conservative to avoid backfilling an entire history.
+  // Criteria for due date:
+  // - Mon-Thu task-days -> upcoming Sunday
+  // - Fri 5:30 AM IST (Fri 00:00 UTC) through Sun 5:30 AM IST (Sun 00:00 UTC) -> next Sunday
+  try {
+    const LOOKBACK_DAYS = 7;
+    const lookbackStartMs = Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
+    const newestBySlug = new Map(); // slug -> { acceptedMs, title }
+    for (const s of recentAcceptedSubmissions || []) {
+      const slug = String(s?.titleSlug || '').trim();
+      const ts = Number(s?.timestamp);
+      if (!slug || !Number.isFinite(ts)) continue;
+
+      const acceptedMs = ts * 1000;
+      if (acceptedMs < lookbackStartMs) continue;
+
+      const prev = newestBySlug.get(slug);
+      if (!prev || acceptedMs > prev.acceptedMs) {
+        newestBySlug.set(slug, {
+          acceptedMs,
+          title: String(s?.title || slug).trim() || slug,
+        });
+      }
+    }
+
+    const slugs = Array.from(newestBySlug.keys());
+    if (slugs.length) {
+      const questionKeys = slugs.map((slug) => `leetcode:${String(slug).toLowerCase()}`);
+
+      // Don't add if the question already exists in ANY bucket.
+      const existing = await RevisionItem.find({ userId, questionKey: { $in: questionKeys } })
+        .select({ questionKey: 1 })
+        .lean();
+      const existingKeys = new Set((existing || []).map((x) => String(x?.questionKey || '').trim()).filter(Boolean));
+
+      const ops = [];
+      for (const slug of slugs) {
+        const questionKey = `leetcode:${String(slug).toLowerCase()}`;
+        if (existingKeys.has(questionKey)) continue;
+
+        const info = newestBySlug.get(slug);
+        if (!info?.acceptedMs) continue;
+        const acceptedAt = new Date(info.acceptedMs);
+        if (!Number.isFinite(acceptedAt.getTime())) continue;
+
+        ops.push({
+          updateOne: {
+            filter: { userId, questionKey, bucket: 'week' },
+            update: {
+              $setOnInsert: {
+                userId,
+                questionKey,
+                source: 'leetcode',
+                ref: slug,
+                title: info.title || slug,
+                difficulty: null,
+                link: `https://leetcode.com/problems/${slug}/`,
+                bucket: 'week',
+                bucketDueAt: computeBucketDueAt('week', acceptedAt),
+                createdAt: new Date(),
+              },
+              $set: { updatedAt: new Date() },
+            },
+            upsert: true,
+          },
+        });
+      }
+
+      if (ops.length) {
+        await RevisionItem.bulkWrite(ops, { ordered: false });
+      }
+    }
+  } catch (e) {
+    // Non-fatal: summary should still load even if LeetCode auto-add fails.
   }
 
   // Auto-mark Today bucket LeetCode items done if accepted within the due day.
