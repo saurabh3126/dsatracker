@@ -22,8 +22,13 @@ function isWeb3FormsConfigured() {
   return Boolean(WEB3FORMS_ACCESS_KEY);
 }
 
+function isSmtpConfigured() {
+  return Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS);
+}
+
 function getEmailProvider() {
-  return isWeb3FormsConfigured() ? 'web3forms' : 'smtp';
+  if (isWeb3FormsConfigured() && WEB3FORMS_ALLOW_SERVER) return 'web3forms';
+  return 'smtp';
 }
 
 function stripHtmlToText(html) {
@@ -179,35 +184,47 @@ function shouldRetryWithIpv4(err) {
  * @param {string} [options.fromName] - Display sender name (Web3Forms from_name)
  */
 const sendEmail = async ({ to, subject, htmlContent, replyTo, fromName }) => {
-  if (isWeb3FormsConfigured()) {
-    if (!WEB3FORMS_ALLOW_SERVER) {
+  const hasWeb3FormsKey = isWeb3FormsConfigured();
+  const canUseWeb3FormsServerSide = hasWeb3FormsKey && WEB3FORMS_ALLOW_SERVER;
+
+  if (canUseWeb3FormsServerSide) {
+    const result = await sendEmailViaWeb3Forms({ subject, htmlContent, replyTo, fromName });
+    return { provider: 'web3forms', result };
+  }
+
+  // If Web3Forms is configured but server-side submissions are disabled, fall back to SMTP when available.
+  if (hasWeb3FormsKey && !WEB3FORMS_ALLOW_SERVER) {
+    if (!isSmtpConfigured()) {
       console.warn(
         'Web3Forms is configured but server-side API calls are disabled. Web3Forms blocks server-side submissions unless you have a paid plan + safelist your server IP. Set WEB3FORMS_ALLOW_SERVER=true only if you have enabled that.',
       );
       return { provider: 'web3forms', skipped: true, reason: 'server_side_not_allowed' };
     }
-
-    const result = await sendEmailViaWeb3Forms({ subject, htmlContent, replyTo, fromName });
-    return { provider: 'web3forms', result };
+    console.warn(
+      'Web3Forms server-side calls are disabled; falling back to SMTP. To use Web3Forms from the server, set WEB3FORMS_ALLOW_SERVER=true only after enabling paid plan + safelisting the server IP.',
+    );
   }
 
   const transporter = getTransporter();
   if (!transporter) {
-    console.warn(
-      'SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS). Skipping email sending.',
-      {
-        hasWeb3FormsKey: Boolean(WEB3FORMS_ACCESS_KEY),
-        hasHost: Boolean(SMTP_HOST),
-        hasUser: Boolean(SMTP_USER),
-        hasPass: Boolean(SMTP_PASS),
-      }
-    );
+    console.warn('SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS). Skipping email sending.', {
+      hasWeb3FormsKey: Boolean(WEB3FORMS_ACCESS_KEY),
+      hasHost: Boolean(SMTP_HOST),
+      hasUser: Boolean(SMTP_USER),
+      hasPass: Boolean(SMTP_PASS),
+    });
     return { provider: 'smtp', skipped: true, reason: 'smtp_not_configured' };
+  }
+
+  const toEmail = String(to || '').trim();
+  if (!toEmail) {
+    console.warn('SMTP email recipient is missing (ADMIN_EMAIL). Skipping email sending.');
+    return { provider: 'smtp', skipped: true, reason: 'to_missing' };
   }
 
   const payload = {
     from: SMTP_FROM,
-    to,
+    to: toEmail,
     subject,
     html: htmlContent,
   };

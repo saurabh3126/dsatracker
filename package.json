@@ -9,6 +9,7 @@
     "dev:server": "set PORT=3001 && nodemon index.js",
     "dev:client": "npm --prefix client run dev",
     "dev": "npm run dev:clean && concurrently -n server,client -c green,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "migrate:revision-indexes": "node scripts/migrateRevisionIndexes.js",
     "build:client": "npm --prefix client run build",
     "build": "npm run build:client",
     "start": "node index.js"

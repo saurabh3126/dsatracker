@@ -31,7 +31,9 @@ const RevisionItemSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-RevisionItemSchema.index({ userId: 1, questionKey: 1 }, { unique: true });
+// Allow the same question to exist in multiple buckets (e.g., Week + Today),
+// but prevent duplicates within the same bucket.
+RevisionItemSchema.index({ userId: 1, questionKey: 1, bucket: 1 }, { unique: true });
 
 RevisionItemSchema.pre('validate', function preValidate(next) {
   if (this.source) this.source = String(this.source).trim().toLowerCase();

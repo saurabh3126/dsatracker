@@ -58,9 +58,11 @@ function normalizeLeetCodeSlug(input) {
   return s;
 }
 
-async function findExistingByKey({ userId, source, ref }) {
+async function findExistingByKey({ userId, source, ref, bucket }) {
   const questionKey = `${String(source).trim().toLowerCase()}:${String(ref).trim().toLowerCase()}`;
-  return RevisionItem.findOne({ userId, questionKey }).lean();
+  const query = { userId, questionKey };
+  if (bucket) query.bucket = bucket;
+  return RevisionItem.findOne(query).lean();
 }
 
 async function upsertStarRevisionItems({ userId, slug, title, difficulty, link }) {
@@ -70,8 +72,8 @@ async function upsertStarRevisionItems({ userId, slug, title, difficulty, link }
   const weekSource = 'leetcode_star_week';
   const monthSource = 'leetcode_star_month';
 
-  const weekExisting = await findExistingByKey({ userId, source: weekSource, ref });
-  const monthExisting = await findExistingByKey({ userId, source: monthSource, ref });
+  const weekExisting = await findExistingByKey({ userId, source: weekSource, ref, bucket: 'week' });
+  const monthExisting = await findExistingByKey({ userId, source: monthSource, ref, bucket: 'month' });
 
   const created = { week: false, month: false };
   const items = { week: weekExisting || null, month: monthExisting || null };
@@ -198,6 +200,25 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
   const todayStart = startOfUtcDay(now).getTime();
   const todayEnd = endOfUtcDay(now).getTime();
 
+  // If the same question already exists in Week, don't try to move the Today item into Week
+  // (it would violate the unique index). Instead, update the existing Week item's lastCompletedAt
+  // and delete the Today item.
+  const todayQuestionKeys = todayItems.map((it) => String(it?.questionKey || '').trim()).filter(Boolean);
+  const weekByKey = new Map();
+  if (todayQuestionKeys.length) {
+    const weekItems = await RevisionItem.find({
+      userId,
+      bucket: 'week',
+      questionKey: { $in: todayQuestionKeys },
+    })
+      .select({ _id: 1, questionKey: 1 })
+      .lean();
+    for (const w of weekItems) {
+      const k = String(w?.questionKey || '').trim();
+      if (k && w?._id && !weekByKey.has(k)) weekByKey.set(k, w._id);
+    }
+  }
+
   const ops = [];
   for (const item of todayItems) {
     const slug = String(item?.ref || '').trim();
@@ -212,6 +233,24 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
     if (Number.isFinite(lastCompletedAtMs) && lastCompletedAtMs >= todayStart) continue;
 
     const completedAt = new Date(acceptedMs);
+
+    const qk = String(item?.questionKey || '').trim();
+    const existingWeekId = qk ? weekByKey.get(qk) : null;
+    if (existingWeekId) {
+      ops.push({
+        updateOne: {
+          filter: { _id: existingWeekId, userId },
+          update: { $set: { lastCompletedAt: completedAt, updatedAt: new Date() } },
+        },
+      });
+      ops.push({
+        deleteOne: {
+          filter: { _id: item._id, userId },
+        },
+      });
+      continue;
+    }
+
     ops.push({
       updateOne: {
         filter: { _id: item._id, userId },
@@ -440,7 +479,7 @@ router.post('/items', requireMongo, requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'bucket must be one of: today, week, month' });
   }
 
-  const existing = await findExistingByKey({ userId, source, ref });
+  const existing = await findExistingByKey({ userId, source, ref, bucket });
   if (existing) {
     return res.json({ item: existing, duplicate: true });
   }
@@ -464,7 +503,7 @@ router.post('/items', requireMongo, requireAuth, async (req, res) => {
     return res.status(201).json({ item, duplicate: false });
   } catch (err) {
     if (err?.code === 11000) {
-      const dup = await findExistingByKey({ userId, source, ref });
+      const dup = await findExistingByKey({ userId, source, ref, bucket });
       return res.json({ item: dup, duplicate: true });
     }
     throw err;
@@ -490,7 +529,7 @@ router.post('/from-leetcode', requireMongo, requireAuth, async (req, res) => {
   const source = 'leetcode';
   const ref = slug;
 
-  const existing = await findExistingByKey({ userId, source, ref });
+  const existing = await findExistingByKey({ userId, source, ref, bucket });
   if (existing) return res.json({ item: existing, duplicate: true });
 
   try {
@@ -509,7 +548,7 @@ router.post('/from-leetcode', requireMongo, requireAuth, async (req, res) => {
     return res.status(201).json({ item, duplicate: false });
   } catch (err) {
     if (err?.code === 11000) {
-      const dup = await findExistingByKey({ userId, source, ref });
+      const dup = await findExistingByKey({ userId, source, ref, bucket });
       return res.json({ item: dup, duplicate: true });
     }
     throw err;
@@ -567,7 +606,17 @@ router.patch('/items/:id/move', requireMongo, requireAuth, async (req, res) => {
     }
   }
 
-  await item.save();
+  try {
+    await item.save();
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        error: 'Duplicate question in this bucket',
+        hint: 'This question already exists in the target bucket. Choose a different bucket or remove the existing one.',
+      });
+    }
+    throw err;
+  }
   res.json({ item });
 });
 
@@ -601,6 +650,17 @@ router.post('/items/:id/complete', requireMongo, requireAuth, async (req, res) =
   if (scope === 'today') {
     // After completing Today's task, move it into the Weekly rotation.
     // If completed Mon-Thu -> due this Sunday, else due next Sunday.
+    // If an equivalent Week item already exists, don't create a duplicate.
+    const questionKey = String(item.questionKey || '').trim();
+    if (questionKey) {
+      const weekDup = await RevisionItem.findOne({ userId, questionKey, bucket: 'week' }).select({ _id: 1 });
+      if (weekDup) {
+        await RevisionItem.updateOne({ _id: weekDup._id, userId }, { $set: { lastCompletedAt: now, updatedAt: new Date() } });
+        await RevisionItem.deleteOne({ _id: id, userId });
+        return res.json({ deleted: true, updatedExistingWeek: true });
+      }
+    }
+
     item.bucket = 'week';
     item.bucketDueAt = weeklyDueAtAfterComplete(now);
     item.weekCompletedAt = null;
