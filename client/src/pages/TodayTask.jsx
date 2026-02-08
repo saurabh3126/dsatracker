@@ -118,6 +118,8 @@ export default function TodayTask() {
   const [todoText, setTodoText] = useState('');
   const [todos, setTodos] = useState([]); // [{ id, text, done }]
 
+  const todoDateInputRef = useRef(null);
+
   const todoDayKeyRef = useRef(todoDayKey);
 
   useEffect(() => {
@@ -493,9 +495,36 @@ export default function TodayTask() {
                                 <ChevronLeft className="h-5 w-5" />
                             </button>
                             <div className="text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  aria-label="Select date"
+                                  title="Pick a date"
+                                  onClick={() => {
+                                    const el = todoDateInputRef.current;
+                                    if (!el) return;
+                                    if (typeof el.showPicker === 'function') el.showPicker();
+                                    else el.click();
+                                  }}
+                                  className="rounded-xl p-2 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-colors"
+                                >
+                                  <Calendar className={`h-4 w-4 ${selectedDateKey === todoDayKey ? 'text-indigo-400' : 'text-slate-500'}`} />
+                                </button>
+
+                                <input
+                                  ref={todoDateInputRef}
+                                  type="date"
+                                  className="sr-only"
+                                  value={selectedDateKey}
+                                  onChange={(e) => {
+                                    const next = String(e.target.value || '').trim();
+                                    if (isUtcDateKey(next)) setSelectedDateKey(next);
+                                  }}
+                                />
                                 <span className={`text-xs font-black uppercase tracking-widest ${selectedDateKey === todoDayKey ? 'text-indigo-400' : 'text-slate-500'}`}>
-                                    {selectedDateKey === todoDayKey ? 'Today’s Tasks' : formatKeyDMY(selectedDateKey)}
+                                  {selectedDateKey === todoDayKey ? 'Today’s Tasks' : formatKeyDMY(selectedDateKey)}
                                 </span>
+                              </div>
                             </div>
                             <button 
                                 onClick={() => setSelectedDateKey(addUtcDaysToKey(selectedDateKey, 1))}

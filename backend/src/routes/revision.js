@@ -572,12 +572,13 @@ router.patch('/items/:id/move', requireMongo, requireAuth, async (req, res) => {
 });
 
 function weeklyDueAtAfterComplete(now) {
-  // Rule: if completed before Friday, schedule for this Sunday; otherwise next Sunday.
-  // Interpreting "before Friday" as Mon-Thu.
+  // Rule (task-day boundary is 5:30 AM IST == midnight UTC):
+  // - If completed on Fri/Sat task-days (i.e. Fri/Sat UTC), schedule next Sunday.
+  // - Otherwise schedule the upcoming Sunday.
   const d = new Date(now);
-  const day = d.getDay(); // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
-  const completedBeforeFriday = day >= 1 && day <= 4;
-  return completedBeforeFriday ? getUpcomingSunday(d) : getNextSunday(d);
+  const utcDay = d.getUTCDay(); // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
+  const afterFridayCutoff = utcDay === 5 || utcDay === 6;
+  return afterFridayCutoff ? getNextSunday(d) : getUpcomingSunday(d);
 }
 
 // POST /api/revision/items/:id/complete

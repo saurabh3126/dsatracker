@@ -65,7 +65,17 @@ function getEndOfMonth(value = new Date()) {
 function computeBucketDueAt(bucket, now = new Date()) {
   // "Today" resets at 5:30 AM IST, which is midnight UTC.
   if (bucket === 'today') return endOfUtcDay(now);
-  if (bucket === 'week') return getUpcomingSunday(now);
+  if (bucket === 'week') {
+    // Weekly reset boundary is Sunday 5:30 AM IST == Sunday 00:00 UTC.
+    // Additionally, to keep the "weekly" scope meaningful, any Week item created
+    // after Friday 5:30 AM IST (Friday 00:00 UTC) is scheduled for *next* Sunday
+    // instead of the immediate upcoming Sunday.
+    const d = new Date(now);
+    if (Number.isNaN(d.getTime())) throw new Error('Invalid date');
+    const utcDay = d.getUTCDay(); // 0 = Sun ... 5 = Fri, 6 = Sat
+    const afterFridayCutoff = utcDay === 5 || utcDay === 6; // Fri/Sat task-days
+    return afterFridayCutoff ? getNextSunday(d) : getUpcomingSunday(d);
+  }
   if (bucket === 'month') return getEndOfMonth(now);
   return null;
 }
