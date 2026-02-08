@@ -210,7 +210,11 @@ export default function Home() {
 
     async function sendFeedbackViaWeb3Forms() {
       const accessKey = String(import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || '').trim();
-      if (!accessKey) return { skipped: true, reason: 'missing_access_key' };
+      if (!accessKey) {
+        const err = new Error('Email notifications are not configured (missing VITE_WEB3FORMS_ACCESS_KEY).');
+        err.code = 'WEB3FORMS_KEY_MISSING';
+        throw err;
+      }
 
       const payload = {
         access_key: accessKey,
@@ -246,8 +250,15 @@ export default function Home() {
       await apiPost('/api/feedback', feedback);
 
       // Web3Forms is expected to be called from the client (browser). If you don't
-      // set VITE_WEB3FORMS_ACCESS_KEY, we still save feedback but skip email.
-      await sendFeedbackViaWeb3Forms();
+      // set VITE_WEB3FORMS_ACCESS_KEY, we still save feedback but will show an error.
+      try {
+        await sendFeedbackViaWeb3Forms();
+      } catch (emailErr) {
+        console.error('Email notification failed:', emailErr);
+        setFeedbackStatus('error');
+        setTimeout(() => setFeedbackStatus(''), 5000);
+        return;
+      }
 
       setFeedbackStatus('sent');
       setFeedback({ type: 'Suggestion', message: '' });
