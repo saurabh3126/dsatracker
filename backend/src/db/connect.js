@@ -10,11 +10,18 @@ async function connectMongo() {
     return { connected: true, reason: 'already connected' };
   }
 
-  await mongoose.connect(uri, {
-    // Fail fast if Mongo isn't reachable (helpful for local dev).
-    serverSelectionTimeoutMS: Math.max(1000, Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 5000)),
-  });
-  return { connected: true, reason: 'connected' };
+  try {
+    await mongoose.connect(uri, {
+      // Fail fast if Mongo isn't reachable (helpful for local dev).
+      serverSelectionTimeoutMS: Math.max(1000, Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 5000)),
+    });
+    return { connected: true, reason: 'connected' };
+  } catch (err) {
+    return {
+      connected: false,
+      reason: err?.message || 'connect failed',
+    };
+  }
 }
 
 async function disconnectMongo() {

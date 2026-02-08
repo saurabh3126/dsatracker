@@ -13,27 +13,40 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Type and message are required' });
     }
 
-    const feedback = new Feedback({
+    console.log('Feedback received', {
       type,
-      message,
-      // If user is logged in (optional depending on middleware usage)
-      userId: req.user?._id || null
+      hasMessage: Boolean(String(message || '').trim()),
+      userId: req.user?._id || null,
     });
 
-    await feedback.save();
+    let saved = false;
+    try {
+      const feedback = new Feedback({
+        type,
+        message,
+        // If user is logged in (optional depending on middleware usage)
+        userId: req.user?._id || null,
+      });
 
-    // Send email notification via Brevo
+      await feedback.save();
+      saved = true;
+    } catch (dbErr) {
+      console.error('Feedback save failed (continuing to email):', dbErr?.message || dbErr);
+    }
+
+    // Send email notification to admin (SMTP)
     try {
       await sendFeedbackNotification({
         type,
         message,
         userId: req.user?._id
       });
+      console.log('Feedback email sent');
     } catch (emailErr) {
       console.error('Email notification failed but feedback was saved:', emailErr);
     }
-    
-    res.status(201).json({ message: 'Feedback submitted successfully' });
+
+    res.status(201).json({ message: 'Feedback submitted successfully', saved });
   } catch (err) {
     console.error('Feedback error:', err);
     res.status(500).json({ error: 'Failed to submit feedback' });

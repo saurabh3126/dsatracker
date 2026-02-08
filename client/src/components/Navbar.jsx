@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Bell, Code2, Smile, ChevronDown, CheckCircle2, Clock, Calendar, Menu } from 'lucide-react';
+import { Bell, Smile, ChevronDown, CheckCircle2, Clock, Calendar, Menu } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getNextContestIST, isContestTomorrowIST } from '../utils/contestSchedule.js';
 
@@ -863,7 +863,7 @@ export default function Navbar() {
       <div className="w-full">
         <div className="flex items-center justify-between gap-3 rounded-none border border-white/10 bg-slate-950/60 px-5 py-3.5 backdrop-blur ring-1 ring-fuchsia-500/10 shadow-lg shadow-black/30">
         <Link to="/" className="inline-flex items-center gap-2">
-          <Code2 className="h-5 w-5 text-yellow-400" />
+          <img src="/fevicon.png" alt="DSA Tracker" className="h-8 w-8" />
           <span className="text-lg font-bold tracking-tight text-white">DSA Tracker</span>
         </Link>
 

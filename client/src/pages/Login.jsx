@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Code2, Mail, Lock } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { apiPost } from '../lib/api';
 import { useAuth } from '../auth/AuthContext.jsx';
 
@@ -42,7 +42,7 @@ export default function Login() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/20">
-                <Code2 className="h-6 w-6" />
+                <img src="/fevicon.png" alt="DSA Tracker" className="h-7 w-7" />
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">DSA Tracker</p>

@@ -1,43 +1,71 @@
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@dsatracker.com';
-const BREVO_ADMIN_EMAIL = process.env.BREVO_ADMIN_EMAIL;
+const nodemailer = require('nodemailer');
+
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim();
+
+const SMTP_HOST = (process.env.SMTP_HOST || '').trim();
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_SECURE = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true';
+const SMTP_USER = (process.env.SMTP_USER || '').trim();
+// App passwords are often copied with spaces; remove all whitespace.
+const SMTP_PASS = String(process.env.SMTP_PASS || '').replace(/\s+/g, '');
+const SMTP_FROM = (process.env.SMTP_FROM || '').trim() || SMTP_USER || 'noreply@dsatracker.local';
+
+let cachedTransporter;
+
+function getTransporter() {
+  if (cachedTransporter) return cachedTransporter;
+
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    return null;
+  }
+
+  cachedTransporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+    // Fail fast when SMTP is blocked/unreachable (common on some hosts).
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 20000),
+  });
+
+  return cachedTransporter;
+}
 
 /**
- * Sends an email using Brevo API
+ * Sends an email using SMTP (Nodemailer)
  * @param {Object} options
  * @param {string} options.to - Recipient email
  * @param {string} options.subject - Email subject
  * @param {string} options.htmlContent - Email body in HTML
  */
 const sendEmail = async ({ to, subject, htmlContent }) => {
-  if (!BREVO_API_KEY) {
-    console.warn('BREVO_API_KEY is not set. Skipping email sending.');
+  const transporter = getTransporter();
+  if (!transporter) {
+    console.warn(
+      'SMTP is not configured (SMTP_HOST/SMTP_USER/SMTP_PASS). Skipping email sending.',
+      {
+        hasHost: Boolean(SMTP_HOST),
+        hasUser: Boolean(SMTP_USER),
+        hasPass: Boolean(SMTP_PASS),
+      }
+    );
     return;
   }
 
   try {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'api-key': BREVO_API_KEY
-      },
-      body: JSON.stringify({
-        sender: { email: BREVO_SENDER_EMAIL, name: 'DSA Tracker' },
-        to: [{ email: to }],
-        subject: subject,
-        htmlContent: htmlContent
-      })
+    return await transporter.sendMail({
+      from: SMTP_FROM,
+      to,
+      subject,
+      html: htmlContent,
     });
-
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'Failed to send email via Brevo');
-    }
-    return result;
   } catch (error) {
-    console.error('Brevo Email Error:', error);
+    console.error('SMTP Email Error:', error);
     throw error;
   }
 };
@@ -47,7 +75,10 @@ const sendEmail = async ({ to, subject, htmlContent }) => {
  * @param {Object} feedback - { type, message, userId }
  */
 const sendFeedbackNotification = async (feedback) => {
-  if (!BREVO_ADMIN_EMAIL) return;
+  if (!ADMIN_EMAIL) {
+    console.warn('ADMIN_EMAIL is not set. Skipping feedback email notification.');
+    return;
+  }
 
   const subject = `New ${feedback.type.toUpperCase()} from DSA Tracker`;
   const htmlContent = `
@@ -61,7 +92,7 @@ const sendFeedbackNotification = async (feedback) => {
   `;
 
   return sendEmail({
-    to: BREVO_ADMIN_EMAIL,
+    to: ADMIN_EMAIL,
     subject,
     htmlContent
   });
