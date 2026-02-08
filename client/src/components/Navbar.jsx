@@ -307,15 +307,15 @@ function MobileNavMenu({ isLoggedIn }) {
   }, [open]);
 
   const links = [
-    { to: '/', label: 'Home', always: true },
-    { to: '/questions', label: 'Questions', always: true },
-    { to: '/revision', label: 'Revision', always: false },
-    { to: '/today', label: "Today's Task", always: false },
-    { to: '/solved', label: 'Solved Questions', always: false },
-    { to: '/starred', label: 'Starred Questions', always: false },
-    { to: '/login', label: 'Login', always: !isLoggedIn },
-    { to: '/logout', label: 'Logout', always: isLoggedIn },
-  ].filter((l) => l.always || (isLoggedIn && l.always === false));
+    { to: '/', label: 'Home', show: true },
+    { to: '/questions', label: 'Questions', show: true },
+    { to: '/revision', label: 'Revision', show: isLoggedIn },
+    { to: '/today', label: "Today's Task", show: isLoggedIn },
+    { to: '/solved', label: 'Solved Questions', show: isLoggedIn },
+    { to: '/starred', label: 'Starred Questions', show: isLoggedIn },
+    { to: '/login', label: 'Login', show: !isLoggedIn },
+    { to: '/logout', label: 'Logout', show: isLoggedIn },
+  ].filter((l) => l.show);
 
   return (
     <div ref={rootRef} className="relative">
