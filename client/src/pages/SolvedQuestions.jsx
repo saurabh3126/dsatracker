@@ -62,6 +62,11 @@ export default function SolvedQuestions() {
 
   const [quizItem, setQuizItem] = useState(null);
 
+  const [statementItem, setStatementItem] = useState(null);
+  const [statementLoading, setStatementLoading] = useState(false);
+  const [statementError, setStatementError] = useState('');
+  const [statementDetails, setStatementDetails] = useState(null);
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (monthDropdownRef.current && !monthDropdownRef.current.contains(event.target)) {
@@ -143,6 +148,37 @@ export default function SolvedQuestions() {
     if (!selectedMonthKey) return;
     setPageByMonthKey((prev) => ({ ...prev, [selectedMonthKey]: 1 }));
   }, [selectedMonthKey]);
+
+  useEffect(() => {
+    if (!statementItem) return;
+    let cancelled = false;
+
+    (async () => {
+      const slug = String(statementItem?.ref || statementItem?.slug || '').trim();
+      if (!slug) {
+        setStatementDetails(null);
+        setStatementError('No slug found for this item.');
+        return;
+      }
+
+      setStatementLoading(true);
+      setStatementError('');
+      setStatementDetails(null);
+
+      try {
+        const json = await apiGet(`/api/catalog/leetcode/question/${encodeURIComponent(slug)}`);
+        if (!cancelled) setStatementDetails(json);
+      } catch (e) {
+        if (!cancelled) setStatementError(e?.message || 'Failed to load problem statement');
+      } finally {
+        if (!cancelled) setStatementLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [statementItem]);
 
   const visibleGroups = useMemo(() => {
     if (!selectedMonthKey) return monthGroups;
@@ -459,7 +495,19 @@ export default function SolvedQuestions() {
                           <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
                           
                           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setStatementItem({
+                                  title: it?.title || '',
+                                  ref: it?.ref || it?.slug || '',
+                                  solvedAt: it?.solvedAt || null,
+                                  link: it?.link || '',
+                                })
+                              }
+                              className="min-w-0 text-left focus:outline-none"
+                              title="Open Problem Statement"
+                            >
                               <div className="truncate text-lg font-black text-white group-hover:text-amber-500 transition-colors">
                                 {it.title}
                               </div>
@@ -473,20 +521,22 @@ export default function SolvedQuestions() {
                                   <span>{formatIstDateTime(it.solvedAt).split(',')[1]}</span>
                                 </div>
                               </div>
-                            </div>
+                            </button>
 
                             <div className="flex shrink-0 items-center gap-2">
-                              <a
-                                href={it.link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/10"
-                                title="Open Link"
-                              >
-                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                              </a>
+                              {it.link ? (
+                                <a
+                                  href={it.link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-slate-400 transition-all hover:bg-white/10 hover:text-white border border-white/10"
+                                  title="Open on LeetCode"
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              ) : null}
 
                               <button
                                 type="button"
@@ -615,6 +665,147 @@ export default function SolvedQuestions() {
           </div>
         )}
       </div>
+
+      {statementItem ? (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setStatementItem(null);
+          }}
+        >
+          <div className="w-[min(980px,calc(100vw-2rem))]">
+            <div className="dsa-scroll max-h-[85vh] overflow-y-auto rounded-[2.5rem] border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-10">
+              <style>{`
+                /* LeetCode statement HTML: prevent horizontal overflow/clipping */
+                .leetcode-content {
+                  overflow-wrap: anywhere;
+                  word-break: break-word;
+                }
+                .leetcode-content pre,
+                .leetcode-content code {
+                  white-space: pre-wrap !important;
+                  word-break: break-word;
+                  overflow-x: hidden;
+                }
+                .leetcode-content img {
+                  max-width: 100%;
+                  height: auto;
+                }
+                .leetcode-content table {
+                  width: 100%;
+                  table-layout: fixed;
+                }
+                .leetcode-content th,
+                .leetcode-content td {
+                  word-break: break-word;
+                }
+              `}</style>
+
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-6">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">Problem</div>
+                  <p className="mt-1 break-words text-xl font-semibold text-white">{statementItem.title || 'Untitled'}</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const slug = encodeURIComponent(String(statementItem?.ref || statementItem?.slug || '').trim());
+                    const href = String(statementItem?.link || '').trim() || (slug ? `https://leetcode.com/problems/${slug}/` : '');
+                    return href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
+                      >
+                        View Problem
+                      </a>
+                    ) : null;
+                  })()}
+
+                  <button
+                    type="button"
+                    onClick={() => setStatementItem(null)}
+                    className="rounded-2xl bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-white">Problem Information</p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="text-sm text-slate-200">
+                      <span className="text-slate-400">Source:</span>{' '}
+                      <span className="font-semibold text-white">LeetCode</span>
+                    </div>
+                    <div className="text-sm text-slate-200">
+                      <span className="text-slate-400">Slug:</span>{' '}
+                      <span className="break-words font-semibold text-white">{String(statementItem?.ref || statementItem?.slug || '').trim() || '—'}</span>
+                    </div>
+                    {statementItem?.solvedAt ? (
+                      <div className="text-sm text-slate-200">
+                        <span className="text-slate-400">Solved:</span>{' '}
+                        <span className="font-semibold text-white">{formatIstDateTime(statementItem.solvedAt)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-white">Problem Statement</p>
+
+                  {statementLoading ? (
+                    <div className="mt-2 text-sm text-slate-200/90">Loading details…</div>
+                  ) : statementError ? (
+                    <div className="mt-2 text-sm text-rose-200">{statementError}</div>
+                  ) : statementDetails?.contentHtml ? (
+                    <div
+                      className="leetcode-content mt-3 text-sm text-slate-200/90"
+                      // contentHtml is sanitized server-side
+                      dangerouslySetInnerHTML={{ __html: statementDetails.contentHtml }}
+                    />
+                  ) : (
+                    <div className="mt-2 text-sm text-slate-200/90">No statement available.</div>
+                  )}
+                </div>
+
+                {!statementLoading && !statementError ? (
+                  <>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-sm font-semibold text-white">Constraints</p>
+                      {Array.isArray(statementDetails?.constraints) && statementDetails.constraints.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200/90">
+                          {statementDetails.constraints.map((c) => (
+                            <li key={c}>{c}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-200/90">No constraints found.</div>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-sm font-semibold text-white">Example Test Cases</p>
+                      {statementDetails?.exampleTestcases ? (
+                        <pre className="mt-2 whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-slate-100">
+                          {String(statementDetails.exampleTestcases).trim()}
+                        </pre>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-200/90">No test cases available.</div>
+                      )}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {quizItem && (
         <div

@@ -16,7 +16,13 @@ export default function AppLayout() {
       }
     >
       <Navbar />
-      <main className={(isHome ? 'pb-0' : isAuth ? 'pb-0' : 'pb-16') + ' flex-1' + (isAuth ? ' flex items-center' : '')}>
+      <main
+        className={
+          (isHome ? 'pb-0' : isAuth ? 'pb-0' : 'pb-16') +
+          ' flex-1 pt-[72px]' +
+          (isAuth ? ' flex items-center' : '')
+        }
+      >
         <Outlet />
       </main>
       

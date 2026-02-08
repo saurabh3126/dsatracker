@@ -859,7 +859,7 @@ export default function Navbar() {
   }, [authHeaders, hasContestTomorrow, isHomeRoute, isLoggedIn, pathname, token]);
 
   return (
-    <div className="sticky top-0 z-[500] bg-transparent">
+    <div className="fixed top-0 left-0 right-0 z-[500] bg-transparent">
       <div className="w-full">
         <div className="flex items-center justify-between gap-3 rounded-none border border-white/10 bg-slate-950/60 px-5 py-3.5 backdrop-blur ring-1 ring-fuchsia-500/10 shadow-lg shadow-black/30">
         <Link to="/" className="inline-flex items-center gap-2">
