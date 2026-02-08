@@ -636,12 +636,12 @@ export default function RevisionBucketsDashboard() {
         </button>
       </div>
 
-      <div className="relative mb-12 rounded-[2.5rem] border border-white/5 bg-[#1C1C2E]/30 p-6 sm:p-8 backdrop-blur-sm">
+      <div className="relative z-20 mb-12 rounded-[2.5rem] border border-white/5 bg-[#1C1C2E]/30 p-6 sm:p-8 backdrop-blur-sm">
         <div className="absolute top-0 right-0 p-6 sm:p-8 opacity-5">
             <ClipboardPlus className="h-24 w-24 text-white" />
         </div>
 
-        <form onSubmit={handleAddFromLeetCode} className="relative z-10 font-sans">
+        <form onSubmit={handleAddFromLeetCode} className="relative font-sans">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
             <div className={`${activeTab === 'today' ? 'md:col-span-8' : 'md:col-span-7'} relative`}>
               <label className="block text-xs font-black uppercase tracking-widest text-amber-500 mb-2 px-1 text-[10px]">LeetCode Problem</label>
@@ -665,7 +665,7 @@ export default function RevisionBucketsDashboard() {
               </div>
 
               {showSuggest && (suggestions.length > 0 || suggestLoading) && (
-                <div className="absolute z-[100] left-0 right-0 mt-3 overflow-hidden rounded-[2rem] border border-white/10 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
+                <div className="absolute z-[600] left-0 right-0 mt-3 overflow-hidden rounded-[2rem] border border-white/10 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
                   {suggestLoading && (
                       <div className="px-4 py-3 text-xs text-slate-400 border-b border-white/5 italic">Searching Problemset...</div>
                   )}
@@ -717,7 +717,7 @@ export default function RevisionBucketsDashboard() {
                 </div>
 
                 {isWhenDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 z-[100] mt-0 overflow-hidden rounded-b-[1.5rem] border border-t-0 border-amber-500 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
+                  <div className="absolute top-full left-0 right-0 z-[600] mt-0 overflow-hidden rounded-b-[1.5rem] border border-t-0 border-amber-500 bg-[#05070a] shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
                     {[
                       { value: 'today', label: 'Daily' },
                       { value: 'week', label: 'Weekly' },

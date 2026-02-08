@@ -481,7 +481,7 @@ export default function QuestionsCatalog() {
               placeholder="Search questions..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[#0A0A0B] border border-white/10 rounded-full py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all font-bold placeholder:font-normal"
+              className="w-full bg-[#0A0A0B] border border-white/10 rounded-full py-2.5 pl-11 pr-4 text-sm text-white caret-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all font-bold placeholder:font-normal"
             />
           </div>
 
@@ -542,6 +542,30 @@ export default function QuestionsCatalog() {
               }
               .custom-scrollbar::-webkit-scrollbar-thumb:hover {
                 background: rgba(255,255,255,0.2);
+              }
+
+              /* LeetCode statement HTML: prevent horizontal overflow/clipping */
+              .leetcode-content {
+                overflow-wrap: anywhere;
+                word-break: break-word;
+              }
+              .leetcode-content pre,
+              .leetcode-content code {
+                white-space: pre-wrap !important;
+                word-break: break-word;
+                overflow-x: hidden;
+              }
+              .leetcode-content img {
+                max-width: 100%;
+                height: auto;
+              }
+              .leetcode-content table {
+                width: 100%;
+                table-layout: fixed;
+              }
+              .leetcode-content th,
+              .leetcode-content td {
+                word-break: break-word;
               }
             `}</style>
 
@@ -830,19 +854,19 @@ export default function QuestionsCatalog() {
 
       {selectedItem ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedItem(null);
           }}
         >
-          <div className="w-[min(980px,calc(100vw-2rem))]">
-            <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-8">
+          <div className="w-[min(980px,calc(100vw-2rem))] overflow-x-hidden">
+            <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-8">
               <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-slate-300">Question</p>
-                  <p className="mt-1 text-xl font-semibold text-white">{selectedItem.title}</p>
+                  <p className="mt-1 break-words text-xl font-semibold text-white">{selectedItem.title}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -915,7 +939,7 @@ export default function QuestionsCatalog() {
                     ) : null}
                     <div className="text-sm text-slate-200">
                       <span className="text-slate-400">Slug:</span>{' '}
-                      <span className="font-semibold text-white">{selectedItem.slug}</span>
+                      <span className="break-words font-semibold text-white">{selectedItem.slug}</span>
                     </div>
                   </div>
                 </div>

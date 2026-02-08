@@ -2,7 +2,12 @@ const express = require('express');
 const fs = require('fs-extra');
 const path = require('path');
 
-const { fetchProblemsetQuestions, suggestProblems, fetchQuestionContent } = require('../services/leetcodeClient');
+const {
+  fetchProblemsetQuestions,
+  suggestProblems,
+  fetchQuestionContent,
+  fetchAllProblemsIndex,
+} = require('../services/leetcodeClient');
 
 const router = express.Router();
 
@@ -140,7 +145,63 @@ router.get('/leetcode/questions', async (req, res) => {
     });
   } catch (err) {
     console.error('catalog leetcode/questions error:', err);
-    return res.status(502).json({ error: 'Failed to fetch LeetCode problem list' });
+
+    // Fallback: LeetCode GraphQL (problemsetQuestionListV2) can get blocked on some hosts.
+    // Use the public problems index so the UI remains functional.
+    try {
+      const all = await fetchAllProblemsIndex();
+      const q = String(search || '').trim().toLowerCase();
+      const numeric = /^\d{1,5}$/.test(q) ? q : null;
+
+      let filtered = Array.isArray(all) ? all : [];
+
+      if (difficulty) {
+        filtered = filtered.filter((x) => String(x?.difficulty || '') === difficulty);
+      }
+
+      if (q) {
+        if (numeric) {
+          // exact id match first
+          const idx = filtered.findIndex((x) => String(x?.id || '') === numeric);
+          if (idx >= 0) filtered = filtered.slice(idx, idx + 200);
+          else filtered = [];
+        } else {
+          filtered = filtered.filter((x) => {
+            const title = String(x?.title || '').toLowerCase();
+            const slug = String(x?.slug || '').toLowerCase();
+            return title.includes(q) || slug.includes(q);
+          });
+        }
+      }
+
+      const total = filtered.length;
+      const items = filtered.slice(skip, skip + limit).map((x) => ({
+        id: x?.id ? String(x.id) : null,
+        title: String(x?.title || ''),
+        slug: String(x?.slug || ''),
+        difficulty: String(x?.difficulty || '') || null,
+        acceptanceRate: null,
+        tags: [],
+        link: x?.link || (x?.slug ? `https://leetcode.com/problems/${x.slug}/` : null),
+        __fallback: true,
+      }));
+
+      res.set('Cache-Control', 'public, max-age=30');
+      return res.json({
+        topic: { key: topic.key, name: topic.name },
+        difficulty: difficulty || null,
+        search: search || null,
+        total,
+        limit,
+        skip,
+        hasMore: skip + items.length < total,
+        items,
+        hint: 'LeetCode topic catalog is temporarily unavailable; showing a general problem list.',
+      });
+    } catch (fallbackErr) {
+      console.error('catalog leetcode/questions fallback error:', fallbackErr);
+      return res.status(502).json({ error: 'Failed to fetch LeetCode problem list' });
+    }
   }
 });
 

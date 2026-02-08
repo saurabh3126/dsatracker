@@ -478,19 +478,19 @@ export default function Questions() {
 
       {selectedQuestion ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedQuestionId(null);
           }}
         >
-          <div className="w-[min(920px,calc(100vw-2rem))]">
-            <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-8">
+          <div className="w-[min(920px,calc(100vw-2rem))] overflow-x-hidden">
+            <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-8">
               <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-slate-300">Question</p>
-                  <p className="mt-1 text-xl font-semibold text-white">{selectedQuestion.title}</p>
+                  <p className="mt-1 break-words text-xl font-semibold text-white">{selectedQuestion.title}</p>
                 </div>
                 <button
                   type="button"
@@ -536,7 +536,7 @@ export default function Questions() {
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <p className="text-sm font-semibold text-white">Code Template</p>
-                  <pre className="mt-2 overflow-x-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-slate-100">
+                  <pre className="mt-2 whitespace-pre-wrap break-words overflow-x-hidden rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-slate-100">
                     <code className="language-javascript">
                       {selectedQuestion.codeTemplate || '// No template available'}
                     </code>
@@ -582,19 +582,19 @@ export default function Questions() {
 
       {practiceQuestion ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur"
           role="dialog"
           aria-modal="true"
           onClick={(e) => {
             if (e.target === e.currentTarget) setPracticeQuestionId(null);
           }}
         >
-          <div className="w-[min(920px,calc(100vw-2rem))]">
-            <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-8">
+          <div className="w-[min(920px,calc(100vw-2rem))] overflow-x-hidden">
+            <div className="max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-3xl border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-8">
               <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-slate-300">Practice Session</p>
-                  <p className="mt-1 text-xl font-semibold text-white">{practiceQuestion.title}</p>
+                  <p className="mt-1 break-words text-xl font-semibold text-white">{practiceQuestion.title}</p>
                 </div>
                 <button
                   type="button"
