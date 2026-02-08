@@ -314,11 +314,11 @@ async function checkIfPotdSolved({ username, limit = 50 }) {
     return { potd, solved: false, reason: 'username missing' };
   }
 
-  function istDateKey(date) {
+  function dateKeyInTimeZone(date, timeZone) {
     try {
       // YYYY-MM-DD (stable and easy to compare)
       return new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Kolkata',
+        timeZone,
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -332,17 +332,21 @@ async function checkIfPotdSolved({ username, limit = 50 }) {
     }
   }
 
-  const todayIstKey = istDateKey(new Date());
+  // LeetCode's daily challenge date flips at 00:00 UTC (05:30 IST).
+  // The `potd.date` field is already a YYYY-MM-DD string in LeetCode's day basis.
+  const potdDateKey = typeof potd?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(potd.date)
+    ? potd.date
+    : dateKeyInTimeZone(new Date(), 'UTC');
 
   const recent = await fetchRecentAcceptedSubmissions({ username, limit });
 
-  // Only count POTD as solved if there is an AC submission for this slug *today (IST)*.
+  // Only count POTD as solved if there is an AC submission for this slug on the POTD's UTC date.
   const solved = (recent || []).some((s) => {
     if (s?.titleSlug !== slug) return false;
     const ts = Number(s?.timestamp);
     if (!Number.isFinite(ts) || ts <= 0) return false;
     const submittedAt = new Date(ts * 1000);
-    return istDateKey(submittedAt) === todayIstKey;
+    return dateKeyInTimeZone(submittedAt, 'UTC') === potdDateKey;
   });
 
   // If not solved today, keep reason empty so UI doesn't show a confusing message.
