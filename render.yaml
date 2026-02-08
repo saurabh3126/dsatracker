@@ -24,6 +24,16 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
+      - key: WEB3FORMS_ACCESS_KEY
+        sync: false
+      - key: WEB3FORMS_ALLOW_SERVER
+        value: "false"
+      - key: WEB3FORMS_FROM_NAME
+        value: "DSA Tracker"
+      - key: WEB3FORMS_TIMEOUT_MS
+        value: "15000"
+      - key: VITE_WEB3FORMS_ACCESS_KEY
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

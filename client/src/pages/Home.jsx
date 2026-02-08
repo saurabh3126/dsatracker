@@ -64,7 +64,7 @@ function istDateKey(date = new Date()) {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
 
   useLegacyStyle('home', homeCss);
 
@@ -207,9 +207,48 @@ export default function Home() {
     if (!feedback.message.trim()) return;
     
     setFeedbackStatus('sending');
+
+    async function sendFeedbackViaWeb3Forms() {
+      const accessKey = String(import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || '').trim();
+      if (!accessKey) return { skipped: true, reason: 'missing_access_key' };
+
+      const payload = {
+        access_key: accessKey,
+        subject: `DSA Tracker: ${String(feedback.type || 'Feedback').trim()}`,
+        from_name: String(user?.name || 'DSA Tracker').trim(),
+        name: String(user?.name || 'User').trim(),
+        email: String(user?.email || '').trim(),
+        message: `Type: ${feedback.type}\nUser: ${user?.name || 'User'}${user?.email ? ` <${user.email}>` : ''}\n\n${feedback.message}`,
+      };
+
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.success === false) {
+        const msg = String(json?.message || res.statusText || `Web3Forms failed: ${res.status}`).trim();
+        const err = new Error(msg);
+        err.status = res.status;
+        err.provider = 'web3forms';
+        throw err;
+      }
+
+      return json;
+    }
     
     try {
       await apiPost('/api/feedback', feedback);
+
+      // Web3Forms is expected to be called from the client (browser). If you don't
+      // set VITE_WEB3FORMS_ACCESS_KEY, we still save feedback but skip email.
+      await sendFeedbackViaWeb3Forms();
+
       setFeedbackStatus('sent');
       setFeedback({ type: 'Suggestion', message: '' });
       setTimeout(() => setFeedbackStatus(''), 3000);

@@ -3,6 +3,7 @@ const nodemailer = require('nodemailer');
 const WEB3FORMS_ACCESS_KEY = String(process.env.WEB3FORMS_ACCESS_KEY || '').trim();
 const WEB3FORMS_TIMEOUT_MS = Number(process.env.WEB3FORMS_TIMEOUT_MS || 15000);
 const WEB3FORMS_DEFAULT_FROM_NAME = String(process.env.WEB3FORMS_FROM_NAME || 'DSA Tracker').trim();
+const WEB3FORMS_ALLOW_SERVER = String(process.env.WEB3FORMS_ALLOW_SERVER || '').trim().toLowerCase() === 'true';
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim();
 
@@ -19,6 +20,10 @@ let cachedTransporterIpv4;
 
 function isWeb3FormsConfigured() {
   return Boolean(WEB3FORMS_ACCESS_KEY);
+}
+
+function getEmailProvider() {
+  return isWeb3FormsConfigured() ? 'web3forms' : 'smtp';
 }
 
 function stripHtmlToText(html) {
@@ -56,15 +61,20 @@ async function sendEmailViaWeb3Forms({ subject, htmlContent, fromName, replyTo }
 
   const normalizedReplyTo = normalizeReplyTo(replyTo);
 
+  const replyEmail = normalizedReplyTo?.email || ADMIN_EMAIL || '';
+  const replyName = normalizedReplyTo?.name || String(fromName || '').trim() || 'User';
+
   const payload = {
     access_key: WEB3FORMS_ACCESS_KEY,
     subject: String(subject || '').trim() || 'New submission',
     from_name: String(fromName || WEB3FORMS_DEFAULT_FROM_NAME || 'Notifications').trim(),
-    // Web3Forms uses `email` as the reply-to by default.
-    email: normalizedReplyTo?.email || '',
-    name: normalizedReplyTo?.name || String(fromName || '').trim() || 'User',
     message: stripHtmlToText(htmlContent),
   };
+
+  // Web3Forms uses `email` as the reply-to by default.
+  // Avoid sending an empty string if we don't have an email.
+  if (replyEmail) payload.email = replyEmail;
+  if (replyName) payload.name = replyName;
 
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), Math.max(2000, WEB3FORMS_TIMEOUT_MS));
@@ -83,6 +93,14 @@ async function sendEmailViaWeb3Forms({ subject, htmlContent, fromName, replyTo }
     const json = await res.json().catch(() => null);
     if (!res.ok) {
       const msg = String(json?.message || res.statusText || 'Web3Forms request failed').trim();
+      const err = new Error(msg);
+      err.status = res.status;
+      err.provider = 'web3forms';
+      throw err;
+    }
+
+    if (json && json.success === false) {
+      const msg = String(json?.message || 'Web3Forms reported failure').trim();
       const err = new Error(msg);
       err.status = res.status;
       err.provider = 'web3forms';
@@ -162,7 +180,15 @@ function shouldRetryWithIpv4(err) {
  */
 const sendEmail = async ({ to, subject, htmlContent, replyTo, fromName }) => {
   if (isWeb3FormsConfigured()) {
-    return sendEmailViaWeb3Forms({ subject, htmlContent, replyTo, fromName });
+    if (!WEB3FORMS_ALLOW_SERVER) {
+      console.warn(
+        'Web3Forms is configured but server-side API calls are disabled. Web3Forms blocks server-side submissions unless you have a paid plan + safelist your server IP. Set WEB3FORMS_ALLOW_SERVER=true only if you have enabled that.',
+      );
+      return { provider: 'web3forms', skipped: true, reason: 'server_side_not_allowed' };
+    }
+
+    const result = await sendEmailViaWeb3Forms({ subject, htmlContent, replyTo, fromName });
+    return { provider: 'web3forms', result };
   }
 
   const transporter = getTransporter();
@@ -176,7 +202,7 @@ const sendEmail = async ({ to, subject, htmlContent, replyTo, fromName }) => {
         hasPass: Boolean(SMTP_PASS),
       }
     );
-    return;
+    return { provider: 'smtp', skipped: true, reason: 'smtp_not_configured' };
   }
 
   const payload = {
@@ -194,7 +220,8 @@ const sendEmail = async ({ to, subject, htmlContent, replyTo, fromName }) => {
   }
 
   try {
-    return await transporter.sendMail(payload);
+    const result = await transporter.sendMail(payload);
+    return { provider: 'smtp', result };
   } catch (error) {
     // If IPv6 is unreachable, retry once forcing IPv4.
     const retryEnabled = String(process.env.SMTP_RETRY_IPV4 || 'true').toLowerCase() !== 'false';
@@ -202,7 +229,8 @@ const sendEmail = async ({ to, subject, htmlContent, replyTo, fromName }) => {
       try {
         const transporterV4 = getTransporterIpv4();
         if (transporterV4) {
-          return await transporterV4.sendMail(payload);
+          const result = await transporterV4.sendMail(payload);
+          return { provider: 'smtp', ipv4Retry: true, result };
         }
       } catch (retryErr) {
         console.error('SMTP Email Error (IPv4 retry failed):', retryErr);
@@ -220,9 +248,13 @@ const sendEmail = async ({ to, subject, htmlContent, replyTo, fromName }) => {
  * @param {Object} feedback - { type, message, userId, userName, userEmail }
  */
 const sendFeedbackNotification = async (feedback) => {
-  if (!ADMIN_EMAIL) {
+  const provider = getEmailProvider();
+  if (!ADMIN_EMAIL && provider !== 'web3forms') {
     console.warn('ADMIN_EMAIL is not set. Skipping feedback email notification.');
-    return;
+    return { provider, skipped: true, reason: 'admin_email_missing' };
+  }
+  if (!ADMIN_EMAIL && provider === 'web3forms') {
+    console.warn('ADMIN_EMAIL is not set. Sending feedback via Web3Forms (recipient is configured in Web3Forms).');
   }
 
   const userName = String(feedback?.userName || '').trim();

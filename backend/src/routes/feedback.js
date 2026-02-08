@@ -34,16 +34,16 @@ router.post('/', requireAuth, async (req, res) => {
       console.error('Feedback save failed (continuing to email):', dbErr?.message || dbErr);
     }
 
-    // Send email notification to admin (SMTP)
+    // Send email notification to admin
     try {
-      await sendFeedbackNotification({
+      const emailResult = await sendFeedbackNotification({
         type,
         message,
         userId: req.user?._id,
         userName: req.user?.name,
         userEmail: req.user?.email,
       });
-      console.log('Feedback email sent');
+      console.log('Feedback email result', emailResult);
     } catch (emailErr) {
       console.error('Email notification failed but feedback was saved:', emailErr);
     }
