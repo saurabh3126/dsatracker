@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { CalendarClock, CheckSquare, ClipboardPlus, Code2, ExternalLink, RefreshCcw, ChevronDown } from 'lucide-react';
+import { CalendarClock, CheckSquare, ClipboardPlus, Code2, ExternalLink, RefreshCcw, ChevronDown, Sparkles } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useStarred } from '../auth/StarredContext.jsx';
 import { apiGet, apiPatch, apiPost } from '../lib/api.js';
@@ -131,9 +131,9 @@ function sortMonthItems(items) {
   return copy;
 }
 
-function BucketHeader({ title, subtitle, icon: Icon }) {
+function BucketHeader({ title, subtitle, icon: Icon, action }) {
   return (
-    <div className="mb-6">
+    <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
           <Icon className="h-6 w-6" />
@@ -143,6 +143,11 @@ function BucketHeader({ title, subtitle, icon: Icon }) {
           {subtitle ? <p className="text-sm text-slate-400">{subtitle}</p> : null}
         </div>
       </div>
+      {action && (
+        <div className="shrink-0">
+          {action}
+        </div>
+      )}
     </div>
   );
 }
@@ -179,6 +184,7 @@ function ItemRow({
   onCompleteWeek, 
   onCompleteToday, 
   onCompleteMonth,
+  onQuiz,
   showMoveToMonth,
   isMoveToMonthChecked,
   onToggleMoveToMonth
@@ -262,6 +268,15 @@ function ItemRow({
                 <ExternalLink className="h-5 w-5" />
               </a>
             ) : null}
+
+            <button
+              type="button"
+              onClick={() => onQuiz(item)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition-all hover:bg-amber-500 hover:text-black hover:border-amber-500 hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] sm:h-10 sm:w-10"
+              title="Start AI Quiz"
+            >
+              <Sparkles className="h-5 w-5" />
+            </button>
 
             <button
               type="button"
@@ -376,6 +391,12 @@ export default function RevisionBucketsDashboard() {
 
   const [confirmDone, setConfirmDone] = useState(null); // { scope: 'week'|'today'|'month', item }
   const [confirmDoneSubmitting, setConfirmDoneSubmitting] = useState(false);
+
+  const [quizItem, setQuizItem] = useState(null);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizError, setQuizError] = useState('');
+  const [quizData, setQuizData] = useState(null);
+  const [quizSelections, setQuizSelections] = useState({});
 
   const [isWhenDropdownOpen, setIsWhenDropdownOpen] = useState(false);
   const whenDropdownRef = useRef(null);
@@ -557,6 +578,40 @@ export default function RevisionBucketsDashboard() {
     setConfirmDone({ scope: 'month', item });
   }
 
+  async function generateQuizFor(item) {
+    if (!isLoggedIn) {
+      setQuizError('Please log in for AI quizzes.');
+      return;
+    }
+    const slug = String(item?.ref || item?.slug || '').trim();
+    if (!slug) {
+      setQuizError('Missing question slug for this item.');
+      return;
+    }
+
+    setQuizLoading(true);
+    setQuizError('');
+    setQuizData(null);
+    setQuizSelections({});
+
+    try {
+      const json = await apiPost('/api/ai/quiz', { slug, title: item?.title || '' });
+      setQuizData(json);
+    } catch (e) {
+      setQuizError(e?.message || 'Failed to load quiz');
+    } finally {
+      setQuizLoading(false);
+    }
+  }
+
+  function handleQuizRequest(item) {
+    setQuizItem(item);
+    setQuizError('');
+    setQuizData(null);
+    setQuizSelections({});
+    generateQuizFor(item);
+  }
+
   useEffect(() => {
     if (!confirmDone) return;
     function onKeyDown(e) {
@@ -657,6 +712,124 @@ export default function RevisionBucketsDashboard() {
               >
                 {confirmDoneSubmitting ? 'Processing…' : 'Yes, Done'}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {quizItem ? (
+        <div
+          className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20 sm:pt-24 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !quizLoading) setQuizItem(null);
+          }}
+        >
+          <div className="w-[min(980px,calc(100vw-2rem))]">
+            <div className="max-h-[85vh] overflow-y-auto rounded-[2.5rem] border border-white/10 bg-[#0b0f1a]/95 p-6 text-slate-100 shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:p-10">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-6">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">AI Assessment</div>
+                  <h2 className="mt-2 truncate text-2xl font-black text-white">{quizItem.title || quizItem.ref}</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuizItem(null)}
+                    className="rounded-2xl bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/10 hover:bg-white/10"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                {quizLoading ? (
+                  <div className="py-10 opacity-80">
+                    <LoadingIndicator label="Generating AI Quiz..." size="md" />
+                  </div>
+                ) : quizError ? (
+                  <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-200">{quizError}</div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Multiple choice</div>
+                    <button
+                      type="button"
+                      onClick={() => generateQuizFor(quizItem)}
+                      className="rounded-2xl bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-300 ring-1 ring-white/10 transition-all hover:bg-white/10"
+                    >
+                      Reload
+                    </button>
+                  </div>
+                )}
+
+                {!quizLoading && !quizError ? (
+                  Array.isArray(quizData?.questions) && quizData.questions.length ? (
+                    <div className="mt-6 grid gap-6">
+                      {quizData.questions.map((q, idx) => (
+                        <div key={`${idx}-${String(q?.question || '').slice(0, 20)}`} className="rounded-3xl border border-white/10 bg-white/5 p-6">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500/80">Question {idx + 1}</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Pick one</div>
+                          </div>
+                          <div className="mt-3 text-sm font-bold text-white leading-relaxed">{q.question}</div>
+
+                          <div className="mt-4 grid grid-cols-1 gap-2">
+                            {(Array.isArray(q.options) ? q.options : []).map((opt, oi) => {
+                              const selectedIndex = quizSelections[idx];
+                              const answered = selectedIndex !== undefined;
+                              const isCorrect = oi === q.correctIndex;
+                              const isSelected = oi === selectedIndex;
+
+                              const base = 'w-full text-left rounded-2xl border px-4 py-3 text-sm font-bold transition-all';
+                              const state = !answered
+                                ? 'border-white/10 bg-black/20 text-slate-200 hover:bg-white/5'
+                                : isCorrect
+                                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                                  : isSelected
+                                    ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+                                    : 'border-white/10 bg-black/20 text-slate-400';
+
+                              return (
+                                <button
+                                  key={`${idx}-${oi}`}
+                                  type="button"
+                                  className={`${base} ${state}`}
+                                  onClick={() => {
+                                    if (!answered) setQuizSelections((prev) => ({ ...prev, [idx]: oi }));
+                                  }}
+                                >
+                                  <span className="mr-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                    {String.fromCharCode(65 + oi)}.
+                                  </span>
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {quizSelections[idx] !== undefined ? (
+                            <div className="mt-4 rounded-2xl bg-white/5 p-4 border border-white/10">
+                              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500/80 mb-2">Perspective Analysis</div>
+                              {typeof q?.correctIndex === 'number' && Array.isArray(q?.options) && q.options[q.correctIndex] ? (
+                                <div className="text-sm font-bold text-white mb-2">
+                                  Correct Answer: {String.fromCharCode(65 + q.correctIndex)}. {q.options[q.correctIndex]}
+                                </div>
+                              ) : null}
+                              {q.explanation ? <p className="text-xs font-medium leading-relaxed text-slate-400">{q.explanation}</p> : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                      No quiz content returned.
+                    </div>
+                  )
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -843,6 +1016,15 @@ export default function RevisionBucketsDashboard() {
                     title="Daily Tasks" 
                     subtitle="Critical items requiring immediate revision. Resets daily at 5:30 AM IST." 
                     icon={CalendarClock}
+                    action={today.length > 0 && (
+                      <button
+                        onClick={() => handleQuizRequest(today[Math.floor(Math.random() * today.length)])}
+                        className="flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-500 border border-amber-500/20 hover:bg-amber-500 hover:text-black transition-all shadow-lg shadow-amber-500/10"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Random Quiz
+                      </button>
+                    )}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {today.map((item) => (
@@ -853,6 +1035,7 @@ export default function RevisionBucketsDashboard() {
                       onCompleteWeek={completeWeek}
                       onCompleteToday={completeToday}
                       onCompleteMonth={completeMonth}
+                      onQuiz={handleQuizRequest}
                     />
                   ))}
 
@@ -873,6 +1056,15 @@ export default function RevisionBucketsDashboard() {
                     title="Weekend Cycle" 
                     subtitle="Upcoming Sunday revisions. Medium/Hard auto-elevate to Monthly bucket." 
                     icon={RefreshCcw}
+                    action={pendingItems.week.length > 0 && (
+                      <button
+                        onClick={() => handleQuizRequest(pendingItems.week[Math.floor(Math.random() * pendingItems.week.length)])}
+                        className="flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-500 border border-amber-500/20 hover:bg-amber-500 hover:text-black transition-all shadow-lg shadow-amber-500/10"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Random Quiz
+                      </button>
+                    )}
                 />
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -886,6 +1078,7 @@ export default function RevisionBucketsDashboard() {
                         onCompleteWeek={completeWeek}
                         onCompleteToday={completeToday}
                         onCompleteMonth={completeMonth}
+                        onQuiz={handleQuizRequest}
                         showMoveToMonth={isEasy}
                         isMoveToMonthChecked={Boolean(easyMoveToMonthById[item._id])}
                         onToggleMoveToMonth={(val) =>
@@ -909,6 +1102,15 @@ export default function RevisionBucketsDashboard() {
                     title="Deep Memory" 
                     subtitle="Long-term retention cycle. Items show up once a month." 
                     icon={CalendarClock}
+                    action={pendingItems.month.length > 0 && (
+                      <button
+                        onClick={() => handleQuizRequest(pendingItems.month[Math.floor(Math.random() * pendingItems.month.length)])}
+                        className="flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-500 border border-amber-500/20 hover:bg-amber-500 hover:text-black transition-all shadow-lg shadow-amber-500/10"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Random Quiz
+                      </button>
+                    )}
                 />
                 
                 {pendingItems.month.length > 0 && (
@@ -923,6 +1125,7 @@ export default function RevisionBucketsDashboard() {
                           onCompleteWeek={completeWeek}
                           onCompleteToday={completeToday}
                           onCompleteMonth={completeMonth}
+                          onQuiz={handleQuizRequest}
                         />
                       ))}
                     </div>

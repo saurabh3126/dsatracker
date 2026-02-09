@@ -570,7 +570,7 @@ export default function Navbar() {
   const potdUi = useMemo(() => potdMeta(potdSolved), [potdSolved]);
 
   function resolveReminderMessage() {
-    if (homeReminderMode === 'potd') return 'DO IT ASAP !!! BEFORE SLEEPING';
+    if (homeReminderMode === 'potd') return 'POTD PENDING 😱 DO IT ASAP !!! BEFORE SLEEPING';
     if (homeReminderMode === 'contest') return homeReminderText || 'Contest Reminder';
     if (homeReminderMode === 'week') return homeReminderText || 'Weekly Revision Reminder';
     return homeReminderText || 'Complete your revision ASAP!!!!';
