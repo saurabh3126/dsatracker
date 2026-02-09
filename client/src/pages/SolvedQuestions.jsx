@@ -197,7 +197,7 @@ export default function SolvedQuestions() {
     const flat = [];
 
     for (const m of months) {
-      const its = Array.isArray(m?.items) ? m.items : [];
+      const its = Array.isArray(m?.completed) ? m.completed : [];
       for (const it of its) {
         flat.push({
           _id: `${m.monthKey}:${it.itemKey}:${it.completedAt}`,

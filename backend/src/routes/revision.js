@@ -157,7 +157,7 @@ async function archiveMonthlyCompletions({ userId, items }) {
         filter: { userId, monthKey },
         update: {
           $setOnInsert: { userId, monthKey, createdAt: new Date() },
-          $addToSet: { items: { $each: monthItems } },
+          $addToSet: { completed: { $each: monthItems } },
           $set: { updatedAt: new Date() },
         },
         upsert: true,
@@ -384,6 +384,24 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
     });
   }
 
+  // Additional safety cleanup: the Month bucket is an active queue of pending items.
+  // If anything is marked completed (even within the current month), it should be archived
+  // and removed so counts immediately reflect the remaining items.
+  const completedMonthItems = await RevisionItem.find({
+    userId,
+    bucket: 'month',
+    monthCompletedAt: { $ne: null },
+  }).lean();
+
+  if (completedMonthItems.length) {
+    await archiveMonthlyCompletions({ userId, items: completedMonthItems });
+    await RevisionItem.deleteMany({
+      userId,
+      bucket: 'month',
+      monthCompletedAt: { $ne: null },
+    });
+  }
+
   // Pull recent accepted submissions once; use for both:
   // - Auto-marking Today bucket items done
   // - Returning "last submitted on LeetCode" timestamps per item
@@ -479,12 +497,9 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
     // Non-fatal: summary should still load even if LeetCode auto-add fails.
   }
 
-  // Auto-mark Today bucket LeetCode items done if accepted within the due day.
-  try {
-    await autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySlug });
-  } catch (e) {
-    // Non-fatal: summary still works if LeetCode is unavailable.
-  }
+  // Do NOT auto-complete or move Today items based on LeetCode submissions.
+  // LeetCode submission timestamps are attached to the response only, and the UI
+  // can show a "Completed" state in the Today tab without mutating buckets.
 
   // At/after the reset boundary: carry leftover Today items to the next day.
   try {
@@ -532,7 +547,17 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
     else month.push(item);
   }
 
-  res.json({ today, week, month, count: items.length });
+  // Fetch current IST month's archived completions for the "Monthly Completed" partition.
+  let monthlyCompleted = [];
+  try {
+    const currentMonthKey = toISTMonthKey(new Date());
+    const arc = await MonthlyRevisionArchive.findOne({ userId, monthKey: currentMonthKey }).lean();
+    monthlyCompleted = arc?.completed || [];
+  } catch (e) {
+    // Non-fatal
+  }
+
+  res.json({ today, week, month, monthlyCompleted, count: items.length });
 });
 
 // GET /api/revision/monthly-archive
@@ -751,14 +776,13 @@ router.post('/items/:id/complete', requireMongo, requireAuth, async (req, res) =
   }
 
   if (scope === 'month') {
-    item.bucket = 'month';
-    item.monthCompletedAt = now;
-
-    // Mark done for the current month; item will be cleaned up when the month changes.
-    item.bucketDueAt = getEndOfMonth(now);
-
-    await item.save();
-    return res.json({ item });
+    // Month completion should immediately reduce the Month pending count.
+    // Archive it under the current month and remove from the active queue.
+    const forArchive = item.toObject ? item.toObject() : { ...item };
+    forArchive.monthCompletedAt = now;
+    await archiveMonthlyCompletions({ userId, items: [forArchive] });
+    await RevisionItem.deleteOne({ _id: id, userId });
+    return res.json({ deleted: true, archived: true });
   }
 
   // scope === 'week'

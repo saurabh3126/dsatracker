@@ -68,6 +68,51 @@ function istWallTimeToUtcMs({ year, month, day, hour, minute = 0, second = 0 }) 
   return Date.UTC(year, month - 1, day, hour, minute, second) - offsetMs;
 }
 
+function isSameUtcDay(a, b) {
+  const da = new Date(a);
+  const db = new Date(b);
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return false;
+  return (
+    da.getUTCFullYear() === db.getUTCFullYear() &&
+    da.getUTCMonth() === db.getUTCMonth() &&
+    da.getUTCDate() === db.getUTCDate()
+  );
+}
+
+function startOfLocalDay(value = new Date()) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function weekWindowStartFromDueAt(dueAt) {
+  const due = new Date(dueAt);
+  if (Number.isNaN(due.getTime())) return null;
+  const start = startOfLocalDay(due);
+  if (!start) return null;
+  // Due is Sunday end-of-day; window start is Monday 00:00 (6 days before).
+  start.setDate(start.getDate() - 6);
+  return start;
+}
+
+function isTodayDone(item, now = new Date()) {
+  if (!item) return false;
+  const submittedToday =
+    String(item?.source || '').toLowerCase() === 'leetcode' &&
+    item.leetcodeLastAcceptedAt &&
+    isSameUtcDay(item.leetcodeLastAcceptedAt, now);
+  const manuallyDoneToday = Boolean(item.lastCompletedAt && isSameUtcDay(item.lastCompletedAt, now));
+  return Boolean(submittedToday || manuallyDoneToday);
+}
+
+function isWeekDone(item) {
+  if (!item?.weekCompletedAt) return false;
+  const windowStart = weekWindowStartFromDueAt(item.bucketDueAt);
+  if (!windowStart) return true;
+  return new Date(item.weekCompletedAt).getTime() >= windowStart.getTime();
+}
+
 function getContestReminderStage(msRemaining) {
   if (!Number.isFinite(msRemaining)) return null;
   if (msRemaining <= 0) return null;
@@ -776,10 +821,12 @@ export default function Navbar() {
 
         // Track week bucket due time for weekly reminders (works on all routes).
         const weekBucket = Array.isArray(revJson?.week) ? revJson.week : [];
-        const weekDueTimes = weekBucket
+        const weekBucketAll = Array.isArray(revJson?.week) ? revJson.week : [];
+        const weekBucketPending = weekBucketAll.filter((it) => !isWeekDone(it));
+        const weekDueTimes = weekBucketPending
           .map((it) => new Date(it?.bucketDueAt || 0).getTime())
           .filter((t) => Number.isFinite(t) && t > 0);
-        setWeekBucketCount(weekBucket.length);
+        setWeekBucketCount(weekBucketPending.length);
         setWeekBucketDueAtMs(weekDueTimes.length ? Math.min(...weekDueTimes) : null);
 
         // Contest reminders at checkpoints: 24h, 12h, 2h before the next contest.
@@ -802,14 +849,15 @@ export default function Navbar() {
         }
 
         const todayBucket = Array.isArray(revJson?.today) ? revJson.today : [];
+        const todayBucketAll = Array.isArray(revJson?.today) ? revJson.today : [];
 
         // Today tasks reset at 5:30 AM IST (midnight UTC).
         const eod = endOfUtcDay(now).getTime();
-        const dueTodayCount = todayBucket.filter((x) => {
+        const dueTodayCount = todayBucketAll.filter((x) => {
           const t = new Date(x?.bucketDueAt || 0).getTime();
-          return Number.isFinite(t) && t <= eod;
+          return Number.isFinite(t) && t <= eod && !isTodayDone(x, now);
         }).length;
-        const totalTodayCount = todayBucket.length;
+        const totalTodayCount = todayBucketAll.filter((x) => !isTodayDone(x, now)).length;
         const dueTodayPct = totalTodayCount ? dueTodayCount / totalTodayCount : 0;
 
         const hasRevisionLeft = dueTodayCount > 0;

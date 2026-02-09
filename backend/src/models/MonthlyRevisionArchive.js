@@ -20,7 +20,7 @@ const MonthlyRevisionArchiveSchema = new mongoose.Schema(
     // Month key in IST: YYYY-MM
     monthKey: { type: String, required: true, index: true },
 
-    items: { type: [ArchivedRevisionItemSchema], default: [] },
+    completed: { type: [ArchivedRevisionItemSchema], default: [] },
   },
   { timestamps: true }
 );

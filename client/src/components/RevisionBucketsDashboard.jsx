@@ -57,6 +57,30 @@ function isSameUtcDay(a, b) {
   );
 }
 
+function isTodayDone(item, now = new Date()) {
+  if (!item) return false;
+  const submittedToday =
+    String(item?.source || '').toLowerCase() === 'leetcode' &&
+    item.leetcodeLastAcceptedAt &&
+    isSameUtcDay(item.leetcodeLastAcceptedAt, now);
+  const manuallyDoneToday = Boolean(item.lastCompletedAt && isSameUtcDay(item.lastCompletedAt, now));
+  return Boolean(submittedToday || manuallyDoneToday);
+}
+
+function isWeekDone(item) {
+  if (!item?.weekCompletedAt) return false;
+  const windowStart = weekWindowStartFromDueAt(item.bucketDueAt);
+  if (!windowStart) return true;
+  return new Date(item.weekCompletedAt).getTime() >= windowStart.getTime();
+}
+
+function isMonthDone(item, now = new Date()) {
+  if (!item?.monthCompletedAt) return false;
+  const mStart = startOfMonth(now);
+  if (!mStart) return true;
+  return new Date(item.monthCompletedAt).getTime() >= mStart.getTime();
+}
+
 function startOfLocalDay(value = new Date()) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
@@ -83,8 +107,9 @@ function weekWindowStartFromDueAt(dueAt) {
 function sortMonthItems(items) {
   const copy = Array.isArray(items) ? [...items] : [];
   copy.sort((a, b) => {
-    const aDoneAt = safeTime(a?.lastCompletedAt);
-    const bDoneAt = safeTime(b?.lastCompletedAt);
+    // Monthly completion signal.
+    const aDoneAt = safeTime(a?.monthCompletedAt);
+    const bDoneAt = safeTime(b?.monthCompletedAt);
     const aDone = Number.isFinite(aDoneAt);
     const bDone = Number.isFinite(bDoneAt);
 
@@ -166,29 +191,9 @@ function ItemRow({
   const canMoveToToday = item.bucket !== 'today';
   const canMoveToWeek = item.bucket !== 'week';
   const canMoveToMonth = item.bucket !== 'month';
-  const submittedToday =
-    item.bucket === 'today' &&
-    String(item?.source || '').toLowerCase() === 'leetcode' &&
-    item.leetcodeLastAcceptedAt &&
-    isSameUtcDay(item.leetcodeLastAcceptedAt, now);
-  const manuallyDoneToday = item.bucket === 'today' && item.lastCompletedAt && isSameUtcDay(item.lastCompletedAt, now);
-  const todayDone = Boolean(submittedToday || manuallyDoneToday);
-
-  const weekDone = (() => {
-    if (item.bucket !== 'week') return false;
-    if (!item.weekCompletedAt) return false;
-    const windowStart = weekWindowStartFromDueAt(item.bucketDueAt);
-    if (!windowStart) return true;
-    return new Date(item.weekCompletedAt).getTime() >= windowStart.getTime();
-  })();
-
-  const monthDone = (() => {
-    if (item.bucket !== 'month') return false;
-    if (!item.monthCompletedAt) return false;
-    const mStart = startOfMonth(now);
-    if (!mStart) return true;
-    return new Date(item.monthCompletedAt).getTime() >= mStart.getTime();
-  })();
+  const todayDone = item.bucket === 'today' ? isTodayDone(item, now) : false;
+  const weekDone = item.bucket === 'week' ? isWeekDone(item) : false;
+  const monthDone = item.bucket === 'month' ? isMonthDone(item, now) : false;
 
   const showLeetCodeLastAccepted = String(item?.source || '').toLowerCase() === 'leetcode' && item.leetcodeLastAcceptedAt;
 
@@ -355,6 +360,7 @@ export default function RevisionBucketsDashboard() {
   const [today, setToday] = useState([]);
   const [week, setWeek] = useState([]);
   const [month, setMonth] = useState([]);
+  const [monthlyCompleted, setMonthlyCompleted] = useState([]);
 
   const [slug, setSlug] = useState('');
   const [bucket, setBucket] = useState('today');
@@ -374,14 +380,52 @@ export default function RevisionBucketsDashboard() {
   const [isWhenDropdownOpen, setIsWhenDropdownOpen] = useState(false);
   const whenDropdownRef = useRef(null);
 
-  const total = useMemo(() => today.length + week.length + month.length, [today.length, week.length, month.length]);
+  const pendingItems = useMemo(() => {
+    const now = new Date();
+
+    const weekPending = (week || []).filter((it) => !isWeekDone(it));
+    const monthPending = (month || []).filter((it) => !isMonthDone(it, now));
+
+    return {
+      week: weekPending,
+      month: monthPending,
+    };
+  }, [month, today, week]);
+
+  const pendingCounts = useMemo(() => {
+    const now = new Date();
+
+    const todayPending = (today || []).filter((it) => !isTodayDone(it, now)).length;
+    const weekPending = (week || []).filter((it) => !isWeekDone(it)).length;
+    const monthPending = (month || []).filter((it) => !isMonthDone(it, now)).length;
+
+    return {
+      today: todayPending,
+      week: weekPending,
+      month: monthPending,
+      total: todayPending + weekPending + monthPending,
+    };
+  }, [month, today, week]);
 
   async function loadSummary() {
     setError('');
     const json = await apiGet('/api/revision/summary');
+    const now = new Date();
     setToday(json.today || []);
     setWeek(json.week || []);
-    setMonth(sortMonthItems(json.month || []));
+    setMonthlyCompleted(json.monthlyCompleted || []);
+
+    // Monthly UX: once a question is marked completed for Month,
+    // it should disappear from the active Month list.
+    const rawMonth = Array.isArray(json.month) ? json.month : [];
+    const pendingMonth = rawMonth.filter((it) => {
+      // Primary signal from backend.
+      if (it?.monthCompletedAt) return false;
+      // Defensive fallback: if backend ever returns monthCompletedAt items,
+      // don't show them in the active list.
+      return !isMonthDone(it, now);
+    });
+    setMonth(sortMonthItems(pendingMonth));
   }
 
   useEffect(() => {
@@ -548,7 +592,11 @@ export default function RevisionBucketsDashboard() {
       } else {
         await apiPost(`/api/revision/items/${id}/complete`, { scope });
         if (scope === 'today') setMessage('Marked done for today.');
-        else setMessage('Monthly marked done.');
+        else {
+          setMessage('Monthly marked done.');
+          // Make it disappear instantly from the Month tab.
+          setMonth((prev) => (Array.isArray(prev) ? prev.filter((x) => String(x?._id) !== String(id)) : prev));
+        }
       }
 
       ok = true;
@@ -765,10 +813,10 @@ export default function RevisionBucketsDashboard() {
         </form>
       </div>
 
-      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2">
           <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Active Queue Analysis</div>
-          <div className="text-xs font-bold text-slate-400 bg-white/5 py-1 px-3 rounded-full border border-white/10">Total Items: {total}</div>
-      </div>
+          <div className="text-xs font-bold text-slate-400 bg-white/5 py-1 px-3 rounded-full border border-white/10">Pending Items: {pendingCounts.total}</div>
+        </div>
 
       {loading && (
           <div className="py-12 opacity-60">
@@ -782,9 +830,9 @@ export default function RevisionBucketsDashboard() {
             value={activeTab}
             onChange={setActiveTab}
             items={[
-              { value: 'today', label: 'Today', count: today.length },
-              { value: 'week', label: 'Upcoming Sunday', count: week.length },
-              { value: 'month', label: 'Month', count: month.length },
+              { value: 'today', label: 'Today', count: pendingCounts.today },
+              { value: 'week', label: 'Upcoming Sunday', count: pendingCounts.week },
+              { value: 'month', label: 'Month', count: pendingCounts.month },
             ]}
           />
 
@@ -808,7 +856,7 @@ export default function RevisionBucketsDashboard() {
                     />
                   ))}
 
-                  {!today.length ? (
+                  {pendingCounts.today === 0 ? (
                     <div className="rounded-[2rem] border-2 border-dashed border-white/5 bg-[#1C1C2E]/20 p-8 sm:p-10">
                       <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">
                         All questions revised for today! 🎉
@@ -828,7 +876,7 @@ export default function RevisionBucketsDashboard() {
                 />
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {week.map((item) => {
+                  {pendingItems.week.map((item) => {
                     const isEasy = String(item.difficulty || '').toLowerCase() === 'easy' || !item.difficulty;
                     return (
                       <ItemRow
@@ -847,7 +895,7 @@ export default function RevisionBucketsDashboard() {
                     );
                   })}
                 </div>
-                {!week.length ? (
+                {!pendingItems.week.length ? (
                   <div className="py-12 text-center rounded-[2.5rem] border-2 border-dashed border-white/5 sm:py-20">
                         <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No items queued for Sunday revision.</p>
                     </div>
@@ -862,23 +910,72 @@ export default function RevisionBucketsDashboard() {
                     subtitle="Long-term retention cycle. Items show up once a month." 
                     icon={CalendarClock}
                 />
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {month.map((item) => (
-                    <ItemRow
-                      key={item._id}
-                      item={item}
-                      onMove={moveItem}
-                      onCompleteWeek={completeWeek}
-                      onCompleteToday={completeToday}
-                      onCompleteMonth={completeMonth}
-                    />
-                  ))}
-                </div>
-                {!month.length ? (
-                    <div className="py-12 text-center rounded-[2.5rem] border-2 border-dashed border-white/5 sm:py-20">
-                        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Monthly bucket is currently empty.</p>
+                
+                {pendingItems.month.length > 0 && (
+                  <div className="mb-8">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 mb-6 px-1">Due for Revision</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {pendingItems.month.map((item) => (
+                        <ItemRow
+                          key={item._id}
+                          item={item}
+                          onMove={moveItem}
+                          onCompleteWeek={completeWeek}
+                          onCompleteToday={completeToday}
+                          onCompleteMonth={completeMonth}
+                        />
+                      ))}
                     </div>
-                ) : null}
+                  </div>
+                )}
+
+                {monthlyCompleted.length > 0 && (
+                  <div className="mt-12">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-500 mb-6 px-1">Completed Partition</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-70">
+                      {monthlyCompleted.map((item, idx) => (
+                        <div key={item.itemKey || idx} className="group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/5 bg-[#1C1C2E]/20 p-5 sm:p-7 transition-all duration-500">
+                          <div className="relative z-10">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <h3 className="truncate text-lg font-bold text-white/40">
+                                    {item.title || item.ref}
+                                  </h3>
+                                  {item.difficulty ? (
+                                    <span className="shrink-0 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-500/50 border border-emerald-500/10">
+                                      {item.difficulty}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="flex items-center gap-2 text-[11px] text-emerald-500/50 font-bold">
+                                  <CheckSquare className="h-3 w-3" />
+                                  Archived: {formatDate(item.completedAt)}
+                                </div>
+                              </div>
+                              {item.link ? (
+                                <a
+                                  href={item.link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-white/5 text-slate-500 hover:text-amber-500 transition-colors"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {pendingItems.month.length === 0 && monthlyCompleted.length === 0 && (
+                  <div className="py-12 text-center rounded-[2.5rem] border-2 border-dashed border-white/5 sm:py-20">
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Monthly bucket is currently empty.</p>
+                  </div>
+                )}
               </>
             )}
           </div>
