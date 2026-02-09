@@ -77,6 +77,19 @@ function formatKeyDMY(dayKey) {
   return `${d}-${m}-${y}`;
 }
 
+function formatDateTime(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function readCheckedMap(dayKey) {
   if (typeof window === 'undefined') return {};
   try {
@@ -450,6 +463,12 @@ export default function TodayTask() {
                             <h4 className={`truncate text-lg font-bold leading-tight transition-all ${isChecked ? 'text-slate-500 line-through' : 'text-slate-100 group-hover:text-white'}`}>
                               {q.title || q.ref}
                             </h4>
+                            {q.leetcodeLastAcceptedAt && !isChecked && (
+                              <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-400/80 italic">
+                                <Clock className="h-3 w-3" />
+                                Last submitted: {formatDateTime(q.leetcodeLastAcceptedAt)}
+                              </div>
+                            )}
                           </div>
                         </div>
 
