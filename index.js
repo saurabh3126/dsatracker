@@ -16,6 +16,7 @@ const feedbackRoutes = require('./backend/src/routes/feedback');
 
 const { requireAuth } = require('./backend/src/middleware/requireAuth');
 const User = require('./backend/src/models/User');
+const SolvedQuestion = require('./backend/src/models/SolvedQuestion');
  
 
 const app = express();
@@ -502,6 +503,17 @@ app.patch('/api/starred/note', requireAuth, async (req, res) => {
         list[idx] = next;
 
         await fs.writeJson(dataFile, data, { spaces: 2 });
+
+        // Sync with SolvedQuestion (if exists)
+        try {
+            await SolvedQuestion.updateOne(
+                { userId, questionKey },
+                { $set: { notes, updatedAt: new Date() } }
+            );
+        } catch (e) {
+            console.error('Failed to sync note to SolvedQuestion:', e);
+        }
+
         return res.json({ item: next });
     } catch (error) {
         console.error('Error updating starred notes:', error);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { CalendarClock, CheckSquare, ClipboardPlus, Code2, ExternalLink, RefreshCcw, ChevronDown, Sparkles } from 'lucide-react';
+import { CalendarClock, CheckSquare, ClipboardPlus, Code2, ExternalLink, RefreshCcw, ChevronDown, Sparkles, Search } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useStarred } from '../auth/StarredContext.jsx';
 import { apiGet, apiPatch, apiPost } from '../lib/api.js';
@@ -397,9 +397,12 @@ export default function RevisionBucketsDashboard() {
   const [quizError, setQuizError] = useState('');
   const [quizData, setQuizData] = useState(null);
   const [quizSelections, setQuizSelections] = useState({});
+  const [quizApproach, setQuizApproach] = useState('');
 
   const [isWhenDropdownOpen, setIsWhenDropdownOpen] = useState(false);
   const whenDropdownRef = useRef(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
 
   const pendingItems = useMemo(() => {
     const now = new Date();
@@ -578,7 +581,7 @@ export default function RevisionBucketsDashboard() {
     setConfirmDone({ scope: 'month', item });
   }
 
-  async function generateQuizFor(item) {
+  async function generateQuizFor(item, approachArg) {
     if (!isLoggedIn) {
       setQuizError('Please log in for AI quizzes.');
       return;
@@ -593,9 +596,11 @@ export default function RevisionBucketsDashboard() {
     setQuizError('');
     setQuizData(null);
     setQuizSelections({});
+    // Keep approach if reloading, or use arg
+    const approach = approachArg !== undefined ? approachArg : quizApproach;
 
     try {
-      const json = await apiPost('/api/ai/quiz', { slug, title: item?.title || '' });
+      const json = await apiPost('/api/ai/quiz', { slug, title: item?.title || '', approach });
       setQuizData(json);
     } catch (e) {
       setQuizError(e?.message || 'Failed to load quiz');
@@ -609,7 +614,8 @@ export default function RevisionBucketsDashboard() {
     setQuizError('');
     setQuizData(null);
     setQuizSelections({});
-    generateQuizFor(item);
+    setQuizApproach('');
+    // Do NOT generate immediately; wait for user approach input
   }
 
   useEffect(() => {
@@ -665,6 +671,21 @@ export default function RevisionBucketsDashboard() {
       if (ok) setConfirmDone(null);
     }
   }
+
+  function getFilteredItems(items) {
+    if (!searchQuery) return items;
+    const q = searchQuery.toLowerCase();
+    return items.filter((item) => {
+      const title = String(item.title || item.ref || '').toLowerCase();
+      const ref = String(item.ref || '').toLowerCase();
+      return title.includes(q) || ref.includes(q);
+    });
+  }
+
+  const filteredToday = getFilteredItems(today);
+  const filteredWeek = getFilteredItems(pendingItems.week);
+  const filteredMonthPending = getFilteredItems(pendingItems.month);
+  const filteredMonthCompleted = getFilteredItems(monthlyCompleted);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -751,20 +772,58 @@ export default function RevisionBucketsDashboard() {
                   </div>
                 ) : quizError ? (
                   <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-200">{quizError}</div>
+                ) : !quizData ? (
+                  <div className="animate-in fade-in slide-in-from-bottom-4">
+                    <div className="mb-6 rounded-2xl bg-amber-500/5 p-6 border border-amber-500/10">
+                      <h3 className="text-lg font-bold text-white mb-2">Before you start...</h3>
+                      <p className="text-sm text-slate-400 mb-4">
+                        What is your approach? (e.g. "Two pointers", "HashMap", "O(n) time")
+                        The AI will generate questions based on it.
+                      </p>
+                      
+                      <textarea
+                        autoFocus
+                        value={quizApproach}
+                        onChange={(e) => setQuizApproach(e.target.value)}
+                        placeholder="e.g. Iterative DFS..."
+                        className="w-full h-24 rounded-xl bg-black/40 border border-white/10 p-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 resize-none font-medium mb-4"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => generateQuizFor(quizItem)}
+                        className="w-full rounded-xl bg-amber-500 py-3 text-sm font-black uppercase tracking-widest text-black shadow-lg shadow-amber-500/20 hover:bg-amber-400 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                      >
+                        Start Assessment
+                      </button>
+                    </div>
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => generateQuizFor(quizItem, "")} 
+                        className="text-xs font-bold text-slate-500 hover:text-white transition-colors"
+                      >
+                        Skip & Start General Quiz
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Multiple choice</div>
                     <button
                       type="button"
-                      onClick={() => generateQuizFor(quizItem)}
+                      onClick={() => {
+                        setQuizData(null); // Go back to approach input or just reload? Let's just reload with same approach
+                        generateQuizFor(quizItem); 
+                      }}
                       className="rounded-2xl bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-300 ring-1 ring-white/10 transition-all hover:bg-white/10"
                     >
-                      Reload
+                      Regenerate
                     </button>
                   </div>
                 )}
 
-                {!quizLoading && !quizError ? (
+                {!quizLoading && !quizError && quizData ? (
                   Array.isArray(quizData?.questions) && quizData.questions.length ? (
                     <div className="mt-6 grid gap-6">
                       {quizData.questions.map((q, idx) => (
@@ -822,6 +881,27 @@ export default function RevisionBucketsDashboard() {
                           ) : null}
                         </div>
                       ))}
+
+                      {(() => {
+                        const total = quizData.questions.length;
+                        const answered = Object.keys(quizSelections).length;
+                        if (answered === total) {
+                         const score = quizData.questions.reduce((acc, q, idx) => acc + (quizSelections[idx] === q.correctIndex ? 1 : 0), 0);
+                         return (
+                            <div className="mt-8 rounded-[2.5rem] border border-amber-500/20 bg-amber-500/10 p-8 text-center animate-in zoom-in-50 duration-500">
+                                <h3 className="text-3xl font-black text-white mb-2">Quiz Complete!</h3>
+                                <div className="text-sm font-bold text-amber-500 uppercase tracking-widest mb-4">Final Score</div>
+                                <div className="inline-flex items-center justify-center h-24 w-24 rounded-full bg-amber-500 text-black text-4xl font-black shadow-[0_0_30px_rgba(245,158,11,0.4)]">
+                                    {score}/{total}
+                                </div>
+                                <p className="mt-6 text-slate-300 font-medium">
+                                    {score === total ? 'Perfect Score! Magnificent!' : score > total/2 ? 'Great job! Keep practicing.' : 'Good effort! Review the explanations above.'}
+                                </p>
+                            </div>
+                         );
+                        }
+                        return null;
+                      })()}
                     </div>
                   ) : (
                     <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
@@ -999,6 +1079,19 @@ export default function RevisionBucketsDashboard() {
 
       {!loading && (
         <>
+          <div className="mb-6 relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+              <Search className="h-5 w-5" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search in buckets..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-[#05070a] py-4 pl-12 pr-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all font-bold shadow-lg shadow-black/20"
+            />
+          </div>
+
           <Tabs
             value={activeTab}
             onChange={setActiveTab}
@@ -1027,7 +1120,7 @@ export default function RevisionBucketsDashboard() {
                     )}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {today.map((item) => (
+                  {filteredToday.map((item) => (
                     <ItemRow
                       key={item._id}
                       item={item}
@@ -1047,6 +1140,11 @@ export default function RevisionBucketsDashboard() {
                     </div>
                   ) : null}
                 </div>
+                {searchQuery && filteredToday.length === 0 && pendingCounts.today > 0 && (
+                  <div className="py-12 text-center rounded-[2.5rem] border border-white/5 bg-white/5">
+                      <p className="text-slate-500 font-bold text-sm">No matches found for "{searchQuery}"</p>
+                  </div>
+                )}
               </>
             )}
 
@@ -1068,7 +1166,7 @@ export default function RevisionBucketsDashboard() {
                 />
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {pendingItems.week.map((item) => {
+                  {filteredWeek.map((item) => {
                     const isEasy = String(item.difficulty || '').toLowerCase() === 'easy' || !item.difficulty;
                     return (
                       <ItemRow
@@ -1093,6 +1191,11 @@ export default function RevisionBucketsDashboard() {
                         <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No items queued for Sunday revision.</p>
                     </div>
                 ) : null}
+                {searchQuery && filteredWeek.length === 0 && pendingItems.week.length > 0 && (
+                  <div className="py-12 text-center rounded-[2.5rem] border border-white/5 bg-white/5">
+                      <p className="text-slate-500 font-bold text-sm">No matches found for "{searchQuery}"</p>
+                  </div>
+                )}
               </>
             )}
 
@@ -1113,11 +1216,11 @@ export default function RevisionBucketsDashboard() {
                     )}
                 />
                 
-                {pendingItems.month.length > 0 && (
+                {filteredMonthPending.length > 0 && (
                   <div className="mb-8">
                     <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 mb-6 px-1">Due for Revision</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {pendingItems.month.map((item) => (
+                      {filteredMonthPending.map((item) => (
                         <ItemRow
                           key={item._id}
                           item={item}
@@ -1132,11 +1235,11 @@ export default function RevisionBucketsDashboard() {
                   </div>
                 )}
 
-                {monthlyCompleted.length > 0 && (
+                {filteredMonthCompleted.length > 0 && (
                   <div className="mt-12">
                     <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-500 mb-6 px-1">Completed Partition</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-70">
-                      {monthlyCompleted.map((item, idx) => (
+                      {filteredMonthCompleted.map((item, idx) => (
                         <div key={item.itemKey || idx} className="group relative flex flex-col justify-between overflow-hidden rounded-[2rem] border border-white/5 bg-[#1C1C2E]/20 p-5 sm:p-7 transition-all duration-500">
                           <div className="relative z-10">
                             <div className="flex items-start justify-between gap-4">
@@ -1177,6 +1280,11 @@ export default function RevisionBucketsDashboard() {
                 {pendingItems.month.length === 0 && monthlyCompleted.length === 0 && (
                   <div className="py-12 text-center rounded-[2.5rem] border-2 border-dashed border-white/5 sm:py-20">
                     <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Monthly bucket is currently empty.</p>
+                  </div>
+                )}
+                {searchQuery && filteredMonthPending.length === 0 && filteredMonthCompleted.length === 0 && (pendingItems.month.length > 0 || monthlyCompleted.length > 0) && (
+                  <div className="py-12 text-center rounded-[2.5rem] border border-white/5 bg-white/5">
+                      <p className="text-slate-500 font-bold text-sm">No matches found for "{searchQuery}"</p>
                   </div>
                 )}
               </>

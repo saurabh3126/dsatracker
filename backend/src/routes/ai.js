@@ -439,6 +439,7 @@ async function aiChatJson({ messages, model, timeoutMs }) {
 router.post('/quiz', requireAuth, async (req, res) => {
   const slug = normalizeSlug(req.body?.slug);
   const titleHint = String(req.body?.title || '').trim();
+  const approach = String(req.body?.approach || '').trim();
 
   if (!slug) return res.status(400).json({ error: 'Missing or invalid slug' });
 
@@ -466,6 +467,7 @@ router.post('/quiz', requireAuth, async (req, res) => {
     constraints: constraints.slice(0, 12),
     exampleTestcases: exampleTestcases ? exampleTestcases.slice(0, 600) : '',
     statementExcerpt,
+    userApproach: approach,
   };
 
   const messages = [
@@ -483,6 +485,7 @@ router.post('/quiz', requireAuth, async (req, res) => {
         '- Exactly one correct option\n' +
         '- Include at least 1 time complexity question and at least 1 space complexity question\n' +
         '- Include at least 1 edge case / constraints question\n' +
+        (approach ? '- CRITICAL: The user has proposed an approach (see userApproach). questions 1 and 2 MUST critique or validate their specific approach (is it optimal? does it handle edge cases? is the complexity correct? etc).\n' : '') +
         '- Keep each explanation under 40 words\n' +
         '\nReturn JSON with shape: {"questions":[{"question":"...","options":["A","B","C","D"],"correctIndex":0,"explanation":"...","category":"time|space|edge|algo|reasoning"}] }\n' +
         '\nContext:\n' +

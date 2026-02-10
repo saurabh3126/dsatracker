@@ -1,5 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const fs = require('fs-extra');
+const path = require('path');
 
 const { requireAuth } = require('../middleware/requireAuth');
 const SolvedQuestion = require('../models/SolvedQuestion');
@@ -7,6 +9,7 @@ const { normalizeDifficulty } = require('../utils/revision');
 const { fetchQuestionDetails, fetchRecentAcceptedSubmissions } = require('../services/leetcodeClient');
 
 const router = express.Router();
+const dataFile = path.resolve(__dirname, '../../../questions/data.json');
 
 function requireMongo(req, res, next) {
   if (mongoose.connection.readyState !== 1) {
@@ -217,6 +220,26 @@ router.patch('/:id/notes', requireMongo, requireAuth, async (req, res) => {
   ).lean();
 
   if (!item) return res.status(404).json({ error: 'Solved question not found' });
+
+  // Sync to StarredQuestions (file-based)
+  try {
+    const data = await fs.readJson(dataFile).catch(() => null);
+    if (data && Array.isArray(data.starredQuestions)) {
+      const qKey = item.questionKey;
+      const uStr = String(userId);
+      const idx = data.starredQuestions.findIndex(
+        (x) => String(x.userId) === uStr && x.questionKey === qKey
+      );
+      if (idx >= 0) {
+        data.starredQuestions[idx].notes = notes;
+        data.starredQuestions[idx].updatedAt = new Date().toISOString();
+        await fs.writeJson(dataFile, data, { spaces: 2 });
+      }
+    }
+  } catch (e) {
+    console.error('Failed to sync note to StarredQuestions:', e);
+  }
+
   return res.json({ item });
 });
 
