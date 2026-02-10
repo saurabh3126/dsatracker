@@ -6,6 +6,8 @@ const RevisionItem = require('../models/RevisionItem');
 const MonthlyRevisionArchive = require('../models/MonthlyRevisionArchive');
 const { normalizeDifficulty } = require('../utils/revision');
 const {
+  startOfIstDay,
+  endOfIstDay,
   startOfDay,
   startOfUtcDay,
   computeBucketDueAt,
@@ -171,7 +173,7 @@ async function archiveMonthlyCompletions({ userId, items }) {
 function latestAcceptedMsBySlugFromSubmissions(submissions) {
   const latestAcceptedMsBySlug = new Map();
   for (const s of submissions || []) {
-    const slug = String(s?.titleSlug || '').trim();
+    const slug = String(s?.titleSlug || '').trim().toLowerCase();
     const ts = Number(s?.timestamp);
     if (!slug || !Number.isFinite(ts)) continue;
     const ms = ts * 1000;
@@ -196,9 +198,9 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
   if (!todayItems.length) return { updated: 0, reason: 'no_items' };
 
   const now = new Date();
-  // Task-day boundary: 5:30 AM IST == midnight UTC.
-  const todayStart = startOfUtcDay(now).getTime();
-  const todayEnd = endOfUtcDay(now).getTime();
+  // Task-day boundary: 12:00 AM IST
+  const todayStart = startOfIstDay(now).getTime();
+  const todayEnd = endOfIstDay(now).getTime();
 
   // If the same question already exists in Week, don't try to move the Today item into Week
   // (it would violate the unique index). Instead, update the existing Week item's lastCompletedAt
@@ -221,7 +223,7 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
 
   const ops = [];
   for (const item of todayItems) {
-    const slug = String(item?.ref || '').trim();
+    const slug = String(item?.ref || '').trim().toLowerCase();
     const acceptedMs = latestAcceptedMsBySlug.get(slug);
     if (!acceptedMs) continue;
 
@@ -275,17 +277,17 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
 }
 
 async function rolloverOverdueTodayToNextDay({ userId }) {
-  // At the task-day boundary (5:30 AM IST == midnight UTC), any remaining
+  // At the task-day boundary (12:00 AM IST), any remaining
   // Today bucket items that were not completed should carry over to the next day.
   // We detect "overdue" Today items by comparing their dueAt to the start of
-  // the current UTC day.
+  // the current IST day.
   const now = new Date();
-  const startUtcMs = startOfUtcDay(now).getTime();
+  const startDayMs = startOfIstDay(now).getTime();
 
   const overdueToday = await RevisionItem.find({
     userId,
     bucket: 'today',
-    bucketDueAt: { $lt: new Date(startUtcMs) },
+    bucketDueAt: { $lt: new Date(startDayMs) },
   })
     .select({ _id: 1 })
     .lean();
@@ -334,17 +336,17 @@ async function rolloverOverdueMonthToNextMonth({ userId }) {
 }
 
 async function rolloverOverdueWeekToNextWeek({ userId }) {
-  // Weekly reset boundary is Sunday 5:30 AM IST == Sunday 00:00 UTC.
-  // If a Weekly item is overdue (its dueAt is before the start of the current UTC day),
+  // Weekly reset boundary is Sunday 12:00 AM IST.
+  // If a Weekly item is overdue (its dueAt is before the start of the current IST day),
   // keep it in Week but extend it to the next upcoming Sunday.
   const now = new Date();
-  const startUtcMs = startOfUtcDay(now).getTime();
+  const startDayMs = startOfIstDay(now).getTime();
 
   const result = await RevisionItem.updateMany(
     {
       userId,
       bucket: 'week',
-      bucketDueAt: { $lt: new Date(startUtcMs) },
+      bucketDueAt: { $lt: new Date(startDayMs) },
     },
     {
       $set: {
@@ -361,6 +363,11 @@ async function rolloverOverdueWeekToNextWeek({ userId }) {
 // GET /api/revision/summary
 router.get('/summary', requireMongo, requireAuth, async (req, res) => {
   const userId = getUserId(req);
+
+  // If client explicitly requests a refresh, we can try to bypass cache for recent submissions.
+  // Note: We don't have a direct skipCache flag here yet we rely on short TTL or empty cache.
+  // But if the client passed ?refresh=true, we could consider clearing cache or similar.
+  // For now, let's rely on the short TTL (10s).
 
   // Cleanup: once a month is over, remove items that were marked done in a previous month.
   // This keeps the Month bucket focused on the current month.
@@ -417,6 +424,15 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
   } catch (e) {
     latestAcceptedMsBySlug = new Map();
     recentAcceptedSubmissions = [];
+  }
+
+  // Auto-complete Today items based on recent LeetCode submissions (IST based).
+  try {
+    if (latestAcceptedMsBySlug.size > 0) {
+      await autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySlug });
+    }
+  } catch (e) {
+    // Non-fatal
   }
 
   // Auto-add newly solved LeetCode questions into Weekly Revision.
@@ -531,7 +547,7 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
   if (latestAcceptedMsBySlug && latestAcceptedMsBySlug.size) {
     for (const item of items) {
       if (String(item?.source || '').toLowerCase() !== 'leetcode') continue;
-      const slug = String(item?.ref || '').trim();
+      const slug = String(item?.ref || '').trim().toLowerCase();
       const ms = latestAcceptedMsBySlug.get(slug);
       if (!ms) continue;
       item.leetcodeLastAcceptedAt = new Date(ms);
@@ -727,12 +743,15 @@ router.patch('/items/:id/move', requireMongo, requireAuth, async (req, res) => {
 });
 
 function weeklyDueAtAfterComplete(now) {
-  // Rule (task-day boundary is 5:30 AM IST == midnight UTC):
-  // - If completed on Fri/Sat task-days (i.e. Fri/Sat UTC), schedule next Sunday.
+  // Rule (task-day boundary is 12:00 AM IST):
+  // - If completed on Fri/Sat task-days (i.e. Fri/Sat IST), schedule next Sunday.
   // - Otherwise schedule the upcoming Sunday.
-  const d = new Date(now);
-  const utcDay = d.getUTCDay(); // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
-  const afterFridayCutoff = utcDay === 5 || utcDay === 6;
+  const d = new Date(Number(now));
+  // Shift to IST to check day
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(d.getTime() + istOffset);
+  const istDay = istDate.getUTCDay(); // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
+  const afterFridayCutoff = istDay === 5 || istDay === 6;
   return afterFridayCutoff ? getNextSunday(d) : getUpcomingSunday(d);
 }
 

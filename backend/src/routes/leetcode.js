@@ -8,6 +8,7 @@ const {
   fetchQuestionDetails,
   checkIfPotdSolved,
   fetchPOTD,
+  clearCache,
 } = require('../services/leetcodeClient');
 const {
   calculateNextRevisionDate,
@@ -104,6 +105,9 @@ async function refreshUserQuestionsFromRecentAccepted({ userId, username, limit 
 // POST /api/leetcode/sync?username=...&limit=20
 // Fetch recent accepted submissions and upsert them into Mongo.
 router.post('/sync', requireMongo, asyncJsonRoute(async (req, res) => {
+  // Clear generic cache to ensure dashboard updates too.
+  clearCache();
+
   const username = req.query.username || req.body.username || process.env.LEETCODE_USERNAME;
   const limit = Number(req.query.limit || req.body.limit || 20);
 
@@ -112,7 +116,7 @@ router.post('/sync', requireMongo, asyncJsonRoute(async (req, res) => {
   }
 
   const userSetDifficultyBySlug = req.body?.userSetDifficultyBySlug || {};
-  const submissions = await fetchRecentAcceptedSubmissions({ username, limit });
+  const submissions = await fetchRecentAcceptedSubmissions({ username, limit, skipCache: true });
 
   const ops = [];
   const enriched = [];
@@ -179,6 +183,9 @@ router.post('/sync', requireMongo, asyncJsonRoute(async (req, res) => {
 // POST /api/leetcode/my/sync?limit=20
 // Uses the logged-in user's saved LeetCode username.
 router.post('/my/sync', requireMongo, requireAuth, asyncJsonRoute(async (req, res) => {
+  // Clear generic cache so dashboards using different limits (e.g. 120) also get fresh data.
+  clearCache();
+
   const username = req.user?.leetcodeUsername;
   const limit = Number(req.query.limit || req.body.limit || 20);
 
@@ -187,7 +194,7 @@ router.post('/my/sync', requireMongo, requireAuth, asyncJsonRoute(async (req, re
   }
 
   const userSetDifficultyBySlug = req.body?.userSetDifficultyBySlug || {};
-  const submissions = await fetchRecentAcceptedSubmissions({ username, limit });
+  const submissions = await fetchRecentAcceptedSubmissions({ username, limit, skipCache: true });
 
   const userId = getUserIdOrNull(req);
   const ops = [];

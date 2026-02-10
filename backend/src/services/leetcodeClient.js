@@ -3,7 +3,7 @@ const LEETCODE_GRAPHQL_URL = 'https://leetcode.com/graphql';
 const LEETCODE_PROBLEMS_ALL_URL = 'https://leetcode.com/api/problems/all/';
 
 const LEETCODE_TIMEOUT_MS = Math.max(1000, Number(process.env.LEETCODE_TIMEOUT_MS || 12000));
-const LEETCODE_CACHE_TTL_MS = Math.max(0, Number(process.env.LEETCODE_CACHE_TTL_MS || 60_000));
+const LEETCODE_CACHE_TTL_MS = Math.max(0, Number(process.env.LEETCODE_CACHE_TTL_MS || 10_000));
 const LEETCODE_CACHE_MAX_ENTRIES = Math.max(50, Number(process.env.LEETCODE_CACHE_MAX_ENTRIES || 250));
 
 const LEETCODE_ALL_PROBLEMS_TTL_MS = Math.max(60_000, Number(process.env.LEETCODE_ALL_PROBLEMS_TTL_MS || 6 * 60 * 60 * 1000));
@@ -14,6 +14,10 @@ const _cache = new Map();
 
 let _allProblemsCache = null;
 let _allProblemsExpiresAt = 0;
+
+function clearCache() {
+  _cache.clear();
+}
 
 function _difficultyLevelToLabel(level) {
   if (Number(level) === 1) return 'Easy';
@@ -173,10 +177,12 @@ function normalizeAcceptanceRate(value) {
   return pct;
 }
 
-async function leetcodeGraphQL(query, variables) {
+async function leetcodeGraphQL(query, variables, { skipCache } = {}) {
   const cacheKey = _makeCacheKey(query, variables);
-  const cached = _cacheGet(cacheKey);
-  if (cached) return cached;
+  if (!skipCache) {
+    const cached = _cacheGet(cacheKey);
+    if (cached) return cached;
+  }
 
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), LEETCODE_TIMEOUT_MS);
@@ -228,7 +234,7 @@ async function leetcodeGraphQL(query, variables) {
   return payload.data;
 }
 
-async function fetchRecentAcceptedSubmissions({ username, limit = 20 }) {
+async function fetchRecentAcceptedSubmissions({ username, limit = 20, skipCache = false }) {
   if (!username) throw new Error('username is required');
 
   const query = `
@@ -242,7 +248,7 @@ async function fetchRecentAcceptedSubmissions({ username, limit = 20 }) {
     }
   `;
 
-  const data = await leetcodeGraphQL(query, { username, limit });
+  const data = await leetcodeGraphQL(query, { username, limit }, { skipCache });
   return data?.recentAcSubmissionList ?? [];
 }
 
@@ -284,7 +290,7 @@ async function fetchQuestionContent({ titleSlug }) {
   return data?.question ?? null;
 }
 
-async function fetchPOTD() {
+async function fetchPOTD({ skipCache } = {}) {
   const query = `
     query potd {
       activeDailyCodingChallengeQuestion {
@@ -299,12 +305,12 @@ async function fetchPOTD() {
     }
   `;
 
-  const data = await leetcodeGraphQL(query, {});
+  const data = await leetcodeGraphQL(query, {}, { skipCache });
   return data?.activeDailyCodingChallengeQuestion ?? null;
 }
 
-async function checkIfPotdSolved({ username, limit = 50 }) {
-  const potd = await fetchPOTD();
+async function checkIfPotdSolved({ username, limit = 50, skipCache = false }) {
+  const potd = await fetchPOTD({ skipCache });
   const slug = potd?.question?.titleSlug;
   if (!slug) {
     return { potd, solved: false, reason: 'POTD slug missing' };
@@ -338,7 +344,7 @@ async function checkIfPotdSolved({ username, limit = 50 }) {
     ? potd.date
     : dateKeyInTimeZone(new Date(), 'UTC');
 
-  const recent = await fetchRecentAcceptedSubmissions({ username, limit });
+  const recent = await fetchRecentAcceptedSubmissions({ username, limit, skipCache });
 
   // Only count POTD as solved if there is an AC submission for this slug on the POTD's UTC date.
   const solved = (recent || []).some((s) => {
@@ -478,4 +484,5 @@ module.exports = {
   suggestProblems,
   fetchPOTD,
   checkIfPotdSolved,
+  clearCache,
 };

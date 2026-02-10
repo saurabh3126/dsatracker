@@ -46,24 +46,28 @@ function safeTime(value) {
   return Number.isFinite(t) ? t : NaN;
 }
 
-function isSameUtcDay(a, b) {
+function isSameLocalDay(a, b) {
   const da = new Date(a);
   const db = new Date(b);
   if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return false;
   return (
-    da.getUTCFullYear() === db.getUTCFullYear() &&
-    da.getUTCMonth() === db.getUTCMonth() &&
-    da.getUTCDate() === db.getUTCDate()
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
   );
 }
 
 function isTodayDone(item, now = new Date()) {
   if (!item) return false;
+  // Use client-local "Today" check. Since user is in IST and browser is likely in IST,
+  // we can use standard day comparison.
+  // const submittedToday = ... isSameUtcDay ...
+  // We'll relax to just local day equality.
   const submittedToday =
     String(item?.source || '').toLowerCase() === 'leetcode' &&
     item.leetcodeLastAcceptedAt &&
-    isSameUtcDay(item.leetcodeLastAcceptedAt, now);
-  const manuallyDoneToday = Boolean(item.lastCompletedAt && isSameUtcDay(item.lastCompletedAt, now));
+    isSameLocalDay(item.leetcodeLastAcceptedAt, now);
+  const manuallyDoneToday = Boolean(item.lastCompletedAt && isSameLocalDay(item.lastCompletedAt, now));
   return Boolean(submittedToday || manuallyDoneToday);
 }
 
@@ -131,7 +135,7 @@ function sortMonthItems(items) {
   return copy;
 }
 
-function BucketHeader({ title, subtitle, icon: Icon, action }) {
+function BucketHeader({ title, subtitle, icon: Icon, action, onRefresh }) {
   return (
     <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -143,11 +147,19 @@ function BucketHeader({ title, subtitle, icon: Icon, action }) {
           {subtitle ? <p className="text-sm text-slate-400">{subtitle}</p> : null}
         </div>
       </div>
-      {action && (
-        <div className="shrink-0">
-          {action}
-        </div>
-      )}
+      <div className="flex items-center gap-2 shrink-0">
+        {onRefresh && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-all hover:bg-white/10 hover:text-white"
+            title="Refresh Status"
+          >
+            <RefreshCcw className="h-4 w-4" />
+          </button>
+        )}
+        {action}
+      </div>
     </div>
   );
 }
@@ -431,9 +443,10 @@ export default function RevisionBucketsDashboard() {
     };
   }, [month, today, week]);
 
-  async function loadSummary() {
+  async function loadSummary(force = false) {
     setError('');
-    const json = await apiGet('/api/revision/summary');
+    const q = force ? `?refresh=true&_t=${Date.now()}` : '';
+    const json = await apiGet(`/api/revision/summary${q}`);
     const now = new Date();
     setToday(json.today || []);
     setWeek(json.week || []);
@@ -450,6 +463,19 @@ export default function RevisionBucketsDashboard() {
       return !isMonthDone(it, now);
     });
     setMonth(sortMonthItems(pendingMonth));
+  }
+
+  async function handleRefresh() {
+    try {
+      setLoading(true);
+      // Force sync with LeetCode to ensure fresh submission data
+      await apiPost('/api/leetcode/my/sync', { limit: 20 });
+      await loadSummary(true);
+    } catch (e) {
+      setError(e?.message || 'Refresh failed');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -1107,8 +1133,9 @@ export default function RevisionBucketsDashboard() {
               <>
                 <BucketHeader 
                     title="Daily Tasks" 
-                    subtitle="Critical items requiring immediate revision. Resets daily at 5:30 AM IST." 
+                    subtitle="Critical items requiring immediate revision. Resets daily at 12:00 AM IST." 
                     icon={CalendarClock}
+                    onRefresh={handleRefresh}
                     action={today.length > 0 && (
                       <button
                         onClick={() => handleQuizRequest(today[Math.floor(Math.random() * today.length)])}
@@ -1154,6 +1181,7 @@ export default function RevisionBucketsDashboard() {
                     title="Weekend Cycle" 
                     subtitle="Upcoming Sunday revisions. Medium/Hard auto-elevate to Monthly bucket." 
                     icon={RefreshCcw}
+                    onRefresh={handleRefresh}
                     action={pendingItems.week.length > 0 && (
                       <button
                         onClick={() => handleQuizRequest(pendingItems.week[Math.floor(Math.random() * pendingItems.week.length)])}
@@ -1205,6 +1233,7 @@ export default function RevisionBucketsDashboard() {
                     title="Deep Memory" 
                     subtitle="Long-term retention cycle. Items show up once a month." 
                     icon={CalendarClock}
+                    onRefresh={handleRefresh}
                     action={pendingItems.month.length > 0 && (
                       <button
                         onClick={() => handleQuizRequest(pendingItems.month[Math.floor(Math.random() * pendingItems.month.length)])}
