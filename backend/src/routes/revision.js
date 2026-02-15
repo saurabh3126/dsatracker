@@ -335,6 +335,37 @@ async function rolloverOverdueMonthToNextMonth({ userId }) {
   return { moved: result?.modifiedCount || 0 };
 }
 
+async function moveOverdueWeekToTodayOnSunday({ userId }) {
+  // If today is Sunday (after 5:30 AM IST), move all overdue weekly items into the Today bucket
+  // so the user sees them as "due today" tasks.
+  const now = new Date();
+  
+  // Weekly reset is effectively around Sunday transitions.
+  // User requested this happens "by Sunday 5:30 AM IST".
+  // 5:30 AM IST is 00:00 UTC. So we simpler check for Sunday in UTC.
+  const utcDay = now.getUTCDay(); // 0 = Sunday
+  if (utcDay !== 0) return { moved: 0 };
+
+  const startDayMs = startOfIstDay(now).getTime();
+
+  const result = await RevisionItem.updateMany(
+    {
+      userId,
+      bucket: 'week',
+      bucketDueAt: { $lt: new Date(startDayMs) },
+    },
+    {
+      $set: {
+        bucket: 'today',
+        bucketDueAt: computeBucketDueAt('today', now),
+        updatedAt: new Date(),
+      },
+    },
+  );
+
+  return { moved: result?.modifiedCount || 0 };
+}
+
 async function rolloverOverdueWeekToNextWeek({ userId }) {
   // Weekly reset boundary is Sunday 12:00 AM IST.
   // If a Weekly item is overdue (its dueAt is before the start of the current IST day),
@@ -524,7 +555,15 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
     // Non-fatal.
   }
 
-  // Weekly boundary rollover: carry overdue weekly items forward.
+  // Weekly boundary rollover:
+  // 1. If it's Sunday, move overdue week items to Today.
+  try {
+    await moveOverdueWeekToTodayOnSunday({ userId });
+  } catch (e) {
+    // Non-fatal.
+  }
+
+  // 2. Otherwise/Remaining: carry overdue weekly items forward to NEXT week.
   try {
     await rolloverOverdueWeekToNextWeek({ userId });
   } catch (e) {

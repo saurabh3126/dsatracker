@@ -199,7 +199,10 @@ function ItemRow({
   onQuiz,
   showMoveToMonth,
   isMoveToMonthChecked,
-  onToggleMoveToMonth
+  onToggleMoveToMonth,
+  showSelection,
+  isSelected,
+  onToggleSelection
 }) {
   const { isStarred, toggleStar } = useStarred();
   const title = item.title || item.ref;
@@ -225,6 +228,16 @@ function ItemRow({
       
       <div className="relative z-10 flex flex-col h-full">
         <div className="flex items-start justify-between gap-4">
+          {showSelection && (
+            <div className="pt-1">
+               <input
+                type="checkbox"
+                className="h-5 w-5 rounded border-white/20 bg-white/5 text-amber-500 focus:ring-amber-500/30 transition-all cursor-pointer accent-amber-500"
+                checked={isSelected || false}
+                onChange={() => onToggleSelection(!isSelected)}
+              />
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <h3 className="truncate text-lg font-bold text-white/90 transition-colors group-hover:text-amber-500">
@@ -400,6 +413,7 @@ export default function RevisionBucketsDashboard() {
 
   const [activeTab, setActiveTab] = useState('today');
   const [easyMoveToMonthById, setEasyMoveToMonthById] = useState({});
+  const [selectedWeekItems, setSelectedWeekItems] = useState(new Set());
 
   const [confirmDone, setConfirmDone] = useState(null); // { scope: 'week'|'today'|'month', item }
   const [confirmDoneSubmitting, setConfirmDoneSubmitting] = useState(false);
@@ -595,6 +609,25 @@ export default function RevisionBucketsDashboard() {
     }
   }
 
+  async function moveSelectedToToday() {
+    if (selectedWeekItems.size === 0) return;
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      await Promise.all(
+        Array.from(selectedWeekItems).map(id => apiPatch(`/api/revision/items/${id}/move`, { bucket: 'today' }))
+      );
+      setSelectedWeekItems(new Set());
+      await loadSummary();
+      setMessage(`Moved ${selectedWeekItems.size} items to Today.`);
+    } catch (e) {
+      setError(e?.message || 'Failed to move selected items');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function completeWeek(item) {
     setConfirmDone({ scope: 'week', item });
   }
@@ -712,6 +745,17 @@ export default function RevisionBucketsDashboard() {
   const filteredWeek = getFilteredItems(pendingItems.week);
   const filteredMonthPending = getFilteredItems(pendingItems.month);
   const filteredMonthCompleted = getFilteredItems(monthlyCompleted);
+
+  const allFilteredWeekSelected = filteredWeek.length > 0 && filteredWeek.every(item => selectedWeekItems.has(item._id));
+
+  function toggleSelectAllWeek() {
+    if (allFilteredWeekSelected) {
+      setSelectedWeekItems(new Set());
+    } else {
+      const allIds = filteredWeek.map(item => item._id);
+      setSelectedWeekItems(new Set(allIds));
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -1120,7 +1164,10 @@ export default function RevisionBucketsDashboard() {
 
           <Tabs
             value={activeTab}
-            onChange={setActiveTab}
+            onChange={(val) => {
+              setActiveTab(val);
+              setSelectedWeekItems(new Set());
+            }}
             items={[
               { value: 'today', label: 'Today', count: pendingCounts.today },
               { value: 'week', label: 'Upcoming Sunday', count: pendingCounts.week },
@@ -1182,15 +1229,41 @@ export default function RevisionBucketsDashboard() {
                     subtitle="Upcoming Sunday revisions. Medium/Hard auto-elevate to Monthly bucket." 
                     icon={RefreshCcw}
                     onRefresh={handleRefresh}
-                    action={pendingItems.week.length > 0 && (
-                      <button
-                        onClick={() => handleQuizRequest(pendingItems.week[Math.floor(Math.random() * pendingItems.week.length)])}
-                        className="flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-500 border border-amber-500/20 hover:bg-amber-500 hover:text-black transition-all shadow-lg shadow-amber-500/10"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        Random Quiz
-                      </button>
-                    )}
+                    action={
+                      <div className="flex items-center gap-2">
+                        {filteredWeek.length > 0 && (
+                          <button
+                            onClick={toggleSelectAllWeek}
+                            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest border transition-all ${
+                              allFilteredWeekSelected
+                                ? 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            <CheckSquare className="h-4 w-4" />
+                            {allFilteredWeekSelected ? 'Deselect All' : 'Select All'}
+                          </button>
+                        )}
+                        {selectedWeekItems.size > 0 && (
+                            <button
+                              onClick={moveSelectedToToday}
+                              className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-black border border-amber-500 hover:bg-amber-400 hover:scale-[1.02] transition-all shadow-lg shadow-amber-500/20"
+                            >
+                              <ClipboardPlus className="h-4 w-4" />
+                              Move {selectedWeekItems.size} to Today
+                            </button>
+                        )}
+                        {pendingItems.week.length > 0 && (
+                          <button
+                            onClick={() => handleQuizRequest(pendingItems.week[Math.floor(Math.random() * pendingItems.week.length)])}
+                            className="flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-500 border border-amber-500/20 hover:bg-amber-500 hover:text-black transition-all shadow-lg shadow-amber-500/10"
+                          >
+                            <Sparkles className="h-4 w-4" />
+                            Random Quiz
+                          </button>
+                        )}
+                      </div>
+                    }
                 />
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1210,6 +1283,16 @@ export default function RevisionBucketsDashboard() {
                         onToggleMoveToMonth={(val) =>
                           setEasyMoveToMonthById((prev) => ({ ...prev, [item._id]: val }))
                         }
+                        showSelection={true}
+                        isSelected={selectedWeekItems.has(item._id)}
+                        onToggleSelection={() => {
+                            setSelectedWeekItems(prev => {
+                                const next = new Set(prev);
+                                if (next.has(item._id)) next.delete(item._id);
+                                else next.add(item._id);
+                                return next;
+                            });
+                        }}
                       />
                     );
                   })}
