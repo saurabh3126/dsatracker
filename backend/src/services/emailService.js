@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 
 const WEB3FORMS_ACCESS_KEY = String(process.env.WEB3FORMS_ACCESS_KEY || '').trim();
 const WEB3FORMS_TIMEOUT_MS = Number(process.env.WEB3FORMS_TIMEOUT_MS || 15000);
-const WEB3FORMS_DEFAULT_FROM_NAME = String(process.env.WEB3FORMS_FROM_NAME || 'DSA Tracker').trim();
+const WEB3FORMS_DEFAULT_FROM_NAME = String(process.env.WEB3FORMS_FROM_NAME || 'Algonix').trim();
 const WEB3FORMS_ALLOW_SERVER = String(process.env.WEB3FORMS_ALLOW_SERVER || '').trim().toLowerCase() === 'true';
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim();
@@ -278,7 +278,7 @@ const sendFeedbackNotification = async (feedback) => {
   const userEmail = String(feedback?.userEmail || '').trim();
   const replyTo = userEmail ? { email: userEmail, name: userName } : null;
 
-  const subject = `New ${feedback.type.toUpperCase()} from DSA Tracker`;
+  const subject = `New ${feedback.type.toUpperCase()} from Algonix`;
   const htmlContent = `
     <h3>New Feedback Received</h3>
     <p><strong>Type:</strong> ${feedback.type}</p>

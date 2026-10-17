@@ -47,10 +47,10 @@ export default function Signup() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
-                <img src="/fevicon.png" alt="DSA Tracker" className="h-7 w-7" />
+                <img src="/fevicon.png" alt="Algonix" className="h-7 w-7 rounded-full" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">DSA Tracker</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Algonix</p>
                 <h1 className="mt-1 text-2xl font-black tracking-tight text-white">Create your account</h1>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiPost, clearApiCache } from '../lib/api';
 import { 
   ArrowLeft,
   Plus, 
@@ -90,6 +91,8 @@ export default function AddQuestion() {
         codeTemplate, timeComplexity, spaceComplexity,
       };
       await apiPost('/api/questions', payload);
+      // Clear the cache so that /questions loads fresh data
+      clearApiCache('/api/data');
       showNotification('Question added successfully!', 'success');
       window.setTimeout(() => navigate('/questions'), 2000);
     } catch (error) {

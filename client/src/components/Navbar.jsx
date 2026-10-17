@@ -538,6 +538,130 @@ function NotificationsMenu({ items, onOpenChange, variant = 'desktop' }) {
   );
 }
 
+function canShowHomeReminderNow() {
+  if (typeof window === 'undefined') return true;
+  try {
+    const key = 'dsaTracker.homeReminder.lastShownAtMs';
+    const last = Number(window.localStorage.getItem(key) || 0);
+    const now = Date.now();
+    // Show task reminder every 2 hours.
+    return !Number.isFinite(last) || now - last >= 2 * 60 * 60 * 1000;
+  } catch {
+    return true;
+  }
+}
+
+function markHomeReminderShownNow() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem('dsaTracker.homeReminder.lastShownAtMs', String(Date.now()));
+  } catch {
+    // ignore
+  }
+}
+
+function canShowPotdLateReminderToday(now = new Date()) {
+  if (typeof window === 'undefined') return true;
+  try {
+    const key = 'dsaTracker.potdLateReminder.lastShownIstDate';
+    const last = String(window.localStorage.getItem(key) || '');
+    const today = istDateKey(now);
+    if (!today) return true;
+    return last !== today;
+  } catch {
+    return true;
+  }
+}
+
+function markPotdLateReminderShownToday(now = new Date()) {
+  if (typeof window === 'undefined') return;
+  try {
+    const key = 'dsaTracker.potdLateReminder.lastShownIstDate';
+    const today = istDateKey(now);
+    if (today) window.localStorage.setItem(key, today);
+  } catch {
+    // ignore
+  }
+}
+
+function contestReminderStorageKey() {
+  return 'dsaTracker.contestReminder.shown';
+}
+
+function getContestReminderStore() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(contestReminderStorageKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function wasContestReminderShown(contestId, stageKey) {
+  if (!contestId || !stageKey) return false;
+  try {
+    const store = getContestReminderStore();
+    return Boolean(store?.[contestId]?.[stageKey]);
+  } catch {
+    return false;
+  }
+}
+
+function markContestReminderShown(contestId, stageKey) {
+  if (typeof window === 'undefined') return;
+  if (!contestId || !stageKey) return;
+  try {
+    const store = getContestReminderStore();
+    const next = { ...(store || {}) };
+    next[contestId] = { ...(next[contestId] || {}), [stageKey]: Date.now() };
+    window.localStorage.setItem(contestReminderStorageKey(), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+function weekReminderStorageKey() {
+  return 'dsaTracker.weekRevisionReminder.shown';
+}
+
+function getWeekReminderStore() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(weekReminderStorageKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function wasWeekReminderShown(dueAtMs) {
+  const id = String(dueAtMs || '');
+  if (!id) return false;
+  try {
+    const store = getWeekReminderStore();
+    return Boolean(store?.[id]);
+  } catch {
+    return false;
+  }
+}
+
+function markWeekReminderShown(dueAtMs) {
+  if (typeof window === 'undefined') return;
+  const id = String(dueAtMs || '');
+  if (!id) return;
+  try {
+    const store = getWeekReminderStore();
+    const next = { ...(store || {}) };
+    next[id] = Date.now();
+    window.localStorage.setItem(weekReminderStorageKey(), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
 export default function Navbar() {
   const { isLoggedIn, user, token } = useAuth();
   const { pathname } = useLocation();
@@ -549,7 +673,6 @@ export default function Navbar() {
 
   const [homeReminderOpen, setHomeReminderOpen] = useState(false);
   const [homeReminderText, setHomeReminderText] = useState('');
-  const [homeReminderCompletionPct, setHomeReminderCompletionPct] = useState(null);
   const [homeReminderMode, setHomeReminderMode] = useState('summary');
 
   const [notifications, setNotifications] = useState(() => readNotifications());
@@ -618,6 +741,7 @@ export default function Navbar() {
     const now = new Date();
     const next = getNextContestIST(now);
     if (!next?.startsAtUtc) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasContestTomorrow(false);
       return;
     }
@@ -625,129 +749,11 @@ export default function Navbar() {
     setHasContestTomorrow(isContestTomorrowIST(now, next.startsAtUtc));
   }, [nowTick]);
 
-  function canShowHomeReminderNow() {
-    if (typeof window === 'undefined') return true;
-    try {
-      const key = 'dsaTracker.homeReminder.lastShownAtMs';
-      const last = Number(window.localStorage.getItem(key) || 0);
-      const now = Date.now();
-      // Show task reminder every 2 hours.
-      return !Number.isFinite(last) || now - last >= 2 * 60 * 60 * 1000;
-    } catch {
-      return true;
-    }
-  }
 
-  function markHomeReminderShownNow() {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem('dsaTracker.homeReminder.lastShownAtMs', String(Date.now()));
-    } catch {
-      // ignore
-    }
-  }
 
-  function canShowPotdLateReminderToday(now = new Date()) {
-    if (typeof window === 'undefined') return true;
-    try {
-      const key = 'dsaTracker.potdLateReminder.lastShownIstDate';
-      const last = String(window.localStorage.getItem(key) || '');
-      const today = istDateKey(now);
-      if (!today) return true;
-      return last !== today;
-    } catch {
-      return true;
-    }
-  }
 
-  function markPotdLateReminderShownToday(now = new Date()) {
-    if (typeof window === 'undefined') return;
-    try {
-      const key = 'dsaTracker.potdLateReminder.lastShownIstDate';
-      const today = istDateKey(now);
-      if (today) window.localStorage.setItem(key, today);
-    } catch {
-      // ignore
-    }
-  }
 
-  function contestReminderStorageKey() {
-    return 'dsaTracker.contestReminder.shown';
-  }
 
-  function getContestReminderStore() {
-    if (typeof window === 'undefined') return {};
-    try {
-      const raw = window.localStorage.getItem(contestReminderStorageKey());
-      const parsed = raw ? JSON.parse(raw) : null;
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-
-  function wasContestReminderShown(contestId, stageKey) {
-    if (!contestId || !stageKey) return false;
-    try {
-      const store = getContestReminderStore();
-      return Boolean(store?.[contestId]?.[stageKey]);
-    } catch {
-      return false;
-    }
-  }
-
-  function markContestReminderShown(contestId, stageKey) {
-    if (typeof window === 'undefined') return;
-    if (!contestId || !stageKey) return;
-    try {
-      const store = getContestReminderStore();
-      const next = { ...(store || {}) };
-      next[contestId] = { ...(next[contestId] || {}), [stageKey]: Date.now() };
-      window.localStorage.setItem(contestReminderStorageKey(), JSON.stringify(next));
-    } catch {
-      // ignore
-    }
-  }
-
-  function weekReminderStorageKey() {
-    return 'dsaTracker.weekRevisionReminder.shown';
-  }
-
-  function getWeekReminderStore() {
-    if (typeof window === 'undefined') return {};
-    try {
-      const raw = window.localStorage.getItem(weekReminderStorageKey());
-      const parsed = raw ? JSON.parse(raw) : null;
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-
-  function wasWeekReminderShown(dueAtMs) {
-    const id = String(dueAtMs || '');
-    if (!id) return false;
-    try {
-      const store = getWeekReminderStore();
-      return Boolean(store?.[id]);
-    } catch {
-      return false;
-    }
-  }
-
-  function markWeekReminderShown(dueAtMs) {
-    if (typeof window === 'undefined') return;
-    const id = String(dueAtMs || '');
-    if (!id) return;
-    try {
-      const store = getWeekReminderStore();
-      const next = { ...(store || {}) };
-      next[id] = Date.now();
-      window.localStorage.setItem(weekReminderStorageKey(), JSON.stringify(next));
-    } catch {
-      // ignore
-    }
-  }
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -775,8 +781,9 @@ export default function Navbar() {
     if (nowTick >= weekBucketDueAtMs) return;
     if (wasWeekReminderShown(weekBucketDueAtMs)) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHomeReminderMode('week');
-    setHomeReminderCompletionPct(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHomeReminderText(`WEEKLY REVISION COMING in ${formatContestCountdown(msRemaining)}`);
     setHomeReminderOpen(true);
     markWeekReminderShown(weekBucketDueAtMs);
@@ -793,7 +800,6 @@ export default function Navbar() {
           setPotdHref('https://leetcode.com/problemset/');
           setHomeReminderOpen(false);
           setHomeReminderText('');
-          setHomeReminderCompletionPct(null);
           setHomeReminderMode('summary');
         }
         return;
@@ -820,7 +826,6 @@ export default function Navbar() {
         const now = new Date();
 
         // Track week bucket due time for weekly reminders (works on all routes).
-        const weekBucket = Array.isArray(revJson?.week) ? revJson.week : [];
         const weekBucketAll = Array.isArray(revJson?.week) ? revJson.week : [];
         const weekBucketPending = weekBucketAll.filter((it) => !isWeekDone(it));
         const weekDueTimes = weekBucketPending
@@ -841,14 +846,12 @@ export default function Navbar() {
         if (contestId && stage && !wasContestReminderShown(contestId, stage.key)) {
           const countdown = formatContestCountdown(msRemaining);
           setHomeReminderMode('contest');
-          setHomeReminderCompletionPct(null);
           setHomeReminderText(`CONTEST COMING !!!!\nTime left ${countdown}\nALL THE BEST 😊`);
           setHomeReminderOpen(true);
           markContestReminderShown(contestId, stage.key);
           return;
         }
 
-        const todayBucket = Array.isArray(revJson?.today) ? revJson.today : [];
         const todayBucketAll = Array.isArray(revJson?.today) ? revJson.today : [];
 
         // Today tasks reset at 5:30 AM IST (midnight UTC).
@@ -857,9 +860,6 @@ export default function Navbar() {
           const t = new Date(x?.bucketDueAt || 0).getTime();
           return Number.isFinite(t) && t <= eod && !isTodayDone(x, now);
         }).length;
-        const totalTodayCount = todayBucketAll.filter((x) => !isTodayDone(x, now)).length;
-        const dueTodayPct = totalTodayCount ? dueTodayCount / totalTodayCount : 0;
-
         const hasRevisionLeft = dueTodayCount > 0;
 
         const potdIsPending = solvedNow === false;
@@ -868,7 +868,6 @@ export default function Navbar() {
         const nextMode = shouldShowPotdLateReminder ? 'potd' : 'summary';
 
         let nextText = '';
-        const completionPct = null;
 
         if (shouldShowPotdLateReminder) {
           nextText = '';
@@ -879,21 +878,18 @@ export default function Navbar() {
 
         if (nextText && canShowNow) {
           setHomeReminderText(nextText);
-          setHomeReminderCompletionPct(null);
           setHomeReminderMode(nextMode);
           setHomeReminderOpen(true);
           if (shouldShowPotdLateReminder) markPotdLateReminderShownToday(now);
           else markHomeReminderShownNow();
         } else if (shouldShowPotdLateReminder && canShowNow) {
           setHomeReminderText('');
-          setHomeReminderCompletionPct(null);
           setHomeReminderMode('potd');
           setHomeReminderOpen(true);
           markPotdLateReminderShownToday(now);
         } else {
           setHomeReminderOpen(false);
           setHomeReminderText('');
-          setHomeReminderCompletionPct(null);
           setHomeReminderMode('summary');
         }
       } catch {
@@ -911,8 +907,8 @@ export default function Navbar() {
       <div className="w-full">
         <div className="flex items-center justify-between gap-3 rounded-none border border-white/10 bg-slate-950/60 px-5 py-3.5 backdrop-blur ring-1 ring-fuchsia-500/10 shadow-lg shadow-black/30">
         <Link to="/" className="inline-flex items-center gap-2">
-          <img src="/fevicon.png" alt="DSA Tracker" className="h-8 w-8" />
-          <span className="text-lg font-bold tracking-tight text-white">DSA Tracker</span>
+          <img src="/fevicon.png" alt="Algonix" className="h-8 w-8 rounded-full" />
+          <span className="text-lg font-bold tracking-tight text-white">Algonix</span>
         </Link>
 
         <div className="flex items-center gap-3 sm:hidden">

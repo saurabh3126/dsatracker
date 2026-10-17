@@ -50,7 +50,6 @@ export default function SolvedQuestions() {
   const [syncing, setSyncing] = useState(false);
 
   const [items, setItems] = useState([]);
-  const [totalStored, setTotalStored] = useState(0);
   const [monthlyRevisionItems, setMonthlyRevisionItems] = useState([]);
 
   const [selectedMonthKey, setSelectedMonthKey] = useState('');
@@ -188,7 +187,6 @@ export default function SolvedQuestions() {
   async function loadStoredSolved() {
     const json = await apiGet('/api/solved');
     setItems(Array.isArray(json?.items) ? json.items : []);
-    setTotalStored(Number(json?.total || 0));
   }
 
   async function loadMonthlyRevisionArchive() {
@@ -228,7 +226,6 @@ export default function SolvedQuestions() {
 
         if (!isLoggedIn) {
           setItems([]);
-          setTotalStored(0);
           setMonthlyRevisionItems([]);
           return;
         }

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiGet, apiPost } from '../lib/api';
-import questionsCss from '../legacy/questions.css?raw';
-import { useLegacyStyle } from '../legacy/useLegacyStyle';
+
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useStarred } from '../auth/StarredContext.jsx';
 import LoadingIndicator from '../components/LoadingIndicator.jsx';
@@ -211,7 +210,7 @@ export default function QuestionsCatalog() {
 
     (async () => {
       try {
-        const data = await apiGet('/api/data');
+        const data = await apiGet('/api/data', { useCache: true });
         if (cancelled) return;
 
         const list = Array.isArray(data?.questions) ? data.questions : [];
@@ -256,7 +255,7 @@ export default function QuestionsCatalog() {
 
     (async () => {
       try {
-        const t = await apiGet('/api/catalog/topics');
+        const t = await apiGet('/api/catalog/topics', { useCache: true });
 
         if (cancelled) return;
 
@@ -292,7 +291,7 @@ export default function QuestionsCatalog() {
 
     try {
       setLeetcodeError('');
-      const json = await apiGet(`${base}?${params.toString()}`);
+      const json = await apiGet(`${base}?${params.toString()}`, { useCache: true });
       const nextItems = Array.isArray(json?.items) ? json.items : [];
 
       if (reset) setLeetcodeItems(nextItems);
@@ -421,7 +420,10 @@ export default function QuestionsCatalog() {
 
     (async () => {
       try {
-        const json = await apiGet(`/api/catalog/leetcode/question/${encodeURIComponent(selectedItem.slug)}`);
+        const json = await apiGet(
+          `/api/catalog/leetcode/question/${encodeURIComponent(selectedItem.slug)}`,
+          { useCache: true }
+        );
         if (cancelled) return;
         setSelectedDetails(json);
       } catch (e) {

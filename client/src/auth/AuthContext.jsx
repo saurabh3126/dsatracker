@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 const AuthContext = createContext(null);
 
 const LAST_VISIT_KEY = 'dsaTracker.auth.lastVisitAtMs';
+const USER_DATA_KEY = 'dsaTracker.auth.userData';
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 
 function safeReadToken() {
@@ -18,6 +19,24 @@ function safeWriteToken(token) {
   try {
     if (!token) window.localStorage.removeItem('token');
     else window.localStorage.setItem('token', token);
+  } catch {
+    // ignore
+  }
+}
+
+function safeReadUser() {
+  try {
+    const raw = window.localStorage.getItem(USER_DATA_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteUser(user) {
+  try {
+    if (!user) window.localStorage.removeItem(USER_DATA_KEY);
+    else window.localStorage.setItem(USER_DATA_KEY, JSON.stringify(user));
   } catch {
     // ignore
   }
@@ -44,8 +63,8 @@ function safeWriteLastVisitAtMs(ms) {
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => safeReadToken());
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(Boolean(token));
+  const [user, setUser] = useState(() => safeReadUser());
+  const [loading, setLoading] = useState(Boolean(token) && !user); // If we have token AND cached user, not loading.
 
   const isLoggedIn = Boolean(token);
 
@@ -54,6 +73,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setLoading(false);
     safeWriteToken(null);
+    safeWriteUser(null);
   }, []);
 
   const setSession = useCallback((nextToken, nextUser) => {
@@ -61,14 +81,24 @@ export function AuthProvider({ children }) {
     setUser(nextUser || null);
     setLoading(false);
     safeWriteToken(nextToken || null);
+    safeWriteUser(nextUser || null);
   }, []);
 
-  const refreshMe = useCallback(async () => {
+  const refreshMe = useCallback(async (force = false) => {
     const t = safeReadToken();
     if (!t) {
       setUser(null);
       setLoading(false);
       return;
+    }
+
+    const cachedUser = safeReadUser();
+    // If not forced, and we have valid cache, use it and STOP.
+    if (!force && cachedUser && cachedUser._id) {
+       setUser(cachedUser);
+       // Ensure loading is false immediately if we cache-hit
+       setLoading(false);
+       return;
     }
 
     setLoading(true);
@@ -90,6 +120,7 @@ export function AuthProvider({ children }) {
 
       setToken(t);
       setUser(json?.user || null);
+      safeWriteUser(json?.user || null);
     } finally {
       setLoading(false);
     }
@@ -132,19 +163,6 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  useEffect(() => {
-    // on first load (and whenever token changes), fetch /me
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
-    refreshMe().catch(() => {
-      // refreshMe handles logout on 401/403
-    });
-  }, [token, refreshMe]);
-
   const value = useMemo(
     () => ({
       token,
@@ -153,10 +171,15 @@ export function AuthProvider({ children }) {
       isLoggedIn,
       setSession,
       logout,
-      refreshMe,
+      refreshMe, // Expose with (force) arg
     }),
     [token, user, loading, isLoggedIn, setSession, logout, refreshMe],
   );
+
+  useEffect(() => {
+    // on first load (and whenever token changes), try to use cache first
+    refreshMe(false).catch(() => {});
+  }, [token, refreshMe]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

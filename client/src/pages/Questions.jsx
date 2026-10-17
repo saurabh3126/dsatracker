@@ -74,8 +74,10 @@ export default function Questions() {
     }, 3000);
   }
 
-  async function refreshData() {
-    const json = await apiGet('/api/data');
+  async function refreshData(force = false) {
+    // Enable caching for the heavy /api/data call so subsequent visits within the session are instant.
+    // If an action modifies data (like AddQuestion), it should clear this cache entry.
+    const json = await apiGet('/api/data', { useCache: !force });
     setData({
       questions: Array.isArray(json?.questions) ? json.questions : [],
       practiceLogs: Array.isArray(json?.practiceLogs) ? json.practiceLogs : [],
@@ -186,7 +188,7 @@ export default function Questions() {
         date: new Date().toISOString(),
       });
 
-      await refreshData();
+      await refreshData(true);
       setPracticeQuestionId(null);
       setPracticeTimeTaken('');
       setPracticeSolvedWithoutHelp(false);

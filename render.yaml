@@ -29,7 +29,7 @@ services:
       - key: WEB3FORMS_ALLOW_SERVER
         value: "false"
       - key: WEB3FORMS_FROM_NAME
-        value: "DSA Tracker"
+        value: "Algonix"
       - key: WEB3FORMS_TIMEOUT_MS
         value: "15000"
       - key: VITE_WEB3FORMS_ACCESS_KEY

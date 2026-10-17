@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background glow & gradients -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.9" />
+      <stop offset="50%" stop-color="#a855f7" stop-opacity="0.7" />
+      <stop offset="100%" stop-color="#ff007a" stop-opacity="0.9" />
+    </linearGradient>
+
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="35%" stop-color="#4facfe" />
+      <stop offset="70%" stop-color="#9b51e0" />
+      <stop offset="100%" stop-color="#f72585" />
+    </linearGradient>
+
+    <linearGradient id="accentGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff758c" />
+      <stop offset="50%" stop-color="#ff7eb3" />
+      <stop offset="100%" stop-color="#7928ca" />
+    </linearGradient>
+
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Outer ring with glowing gradient -->
+  <circle cx="256" cy="256" r="236" fill="#080c16" stroke="url(#ringGrad)" stroke-width="8" opacity="0.9" />
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.15" />
+
+  <!-- Stylized Geometric Algonix 'A' with algorithmic network nodes -->
+  <g filter="url(#glow)">
+    <!-- Left diagonal arm of 'A' -->
+    <path d="M 256 100 L 120 400 L 176 400 L 256 215 Z" fill="url(#primaryGrad)" />
+
+    <!-- Right diagonal arm of 'A' -->
+    <path d="M 256 100 L 392 400 L 336 400 L 256 215 Z" fill="url(#accentGrad)" opacity="0.95" />
+
+    <!-- Horizontal algorithmic crossbar with data node bridge -->
+    <path d="M 188 300 L 324 300 L 312 332 L 200 332 Z" fill="url(#primaryGrad)" opacity="0.85" />
+  </g>
+
+  <!-- Algorithmic Tree / Graph Nodes -->
+  <!-- Top apex node -->
+  <circle cx="256" cy="115" r="14" fill="#00f2fe" stroke="#ffffff" stroke-width="3" />
+  <circle cx="256" cy="115" r="6" fill="#ffffff" />
+
+  <!-- Left node on crossbar -->
+  <circle cx="206" cy="316" r="12" fill="#7928ca" stroke="#ffffff" stroke-width="2.5" />
+  <circle cx="206" cy="316" r="5" fill="#00f2fe" />
+
+  <!-- Center node on crossbar -->
+  <circle cx="256" cy="316" r="13" fill="#9b51e0" stroke="#ffffff" stroke-width="2.5" />
+  <circle cx="256" cy="316" r="5" fill="#ffffff" />
+
+  <!-- Right node on crossbar -->
+  <circle cx="306" cy="316" r="12" fill="#f72585" stroke="#ffffff" stroke-width="2.5" />
+  <circle cx="306" cy="316" r="5" fill="#ff7eb3" />
+
+  <!-- Bottom Left base node -->
+  <circle cx="150" cy="390" r="11" fill="#00e5ff" stroke="#ffffff" stroke-width="2" />
+
+  <!-- Bottom Right base node -->
+  <circle cx="362" cy="390" r="11" fill="#f72585" stroke="#ffffff" stroke-width="2" />
+
+  <!-- Connecting graph lines -->
+  <line x1="256" y1="115" x2="256" y2="316" stroke="#ffffff" stroke-width="2" stroke-dasharray="4,4" stroke-opacity="0.6" />
+  <line x1="206" y1="316" x2="150" y2="390" stroke="#ffffff" stroke-width="2" stroke-opacity="0.4" />
+  <line x1="306" y1="316" x2="362" y2="390" stroke="#ffffff" stroke-width="2" stroke-opacity="0.4" />
+</svg>

@@ -15,8 +15,11 @@ const {
   difficultyRank,
   normalizeDifficulty,
 } = require('../utils/revision');
+const { computeBucketDueAt, startOfIstDay, endOfIstDay } = require('../utils/revisionBuckets');
+const RevisionItem = require('../models/RevisionItem');
 
 const router = express.Router();
+
 
 function asyncJsonRoute(handler) {
   return async (req, res) => {
@@ -44,6 +47,91 @@ function requireMongo(req, res, next) {
 function getUserIdOrNull(req) {
   const id = req.user && (req.user._id || req.user.id);
   return id ? new mongoose.Types.ObjectId(id) : null;
+}
+
+// Helper to update revision bucket when a question is solved.
+// Supports "New Submission -> Added to Weekly Revision" logic.
+// If an item already exists in WEEK or MONTH, just update lastCompletedAt.
+// NEVER mark Week/Month items as completed (weekCompletedAt/monthCompletedAt).
+async function upsertSolvedRevisionItem({ userId, slug, title, difficulty, link, solvedDate }) {
+  if (!userId || !slug) return;
+
+  const now = new Date();
+  const startToday = startOfIstDay(now).getTime();
+  const endToday = endOfIstDay(now).getTime();
+  const solvedMs = solvedDate.getTime();
+  const isSolvedToday = solvedMs >= startToday && solvedMs <= endToday;
+
+  const existingItems = await RevisionItem.find({ userId, ref: slug }).lean();
+
+  const todayItem = existingItems.find((i) => i.bucket === 'today');
+  const weekItem = existingItems.find((i) => i.bucket === 'week');
+  const monthItem = existingItems.find((i) => i.bucket === 'month');
+
+  // 1. Handle Today Item Completion
+  if (todayItem && isSolvedToday) {
+    if (weekItem) {
+      // Merge into existing Week item
+      await RevisionItem.updateOne(
+        { _id: weekItem._id },
+        { $set: { lastCompletedAt: solvedDate, updatedAt: new Date() } }
+      );
+      await RevisionItem.deleteOne({ _id: todayItem._id });
+    } else if (monthItem) {
+      // Merge into existing Month item
+      await RevisionItem.updateOne(
+        { _id: monthItem._id },
+        { $set: { lastCompletedAt: solvedDate, updatedAt: new Date() } }
+      );
+      await RevisionItem.deleteOne({ _id: todayItem._id });
+    } else {
+      // Move Today item to Week bucket (pending state)
+      await RevisionItem.updateOne(
+        { _id: todayItem._id },
+        {
+          $set: {
+            bucket: 'week',
+            bucketDueAt: computeBucketDueAt('week', solvedDate),
+            lastCompletedAt: solvedDate,
+            weekCompletedAt: null, // Ensure pending
+            monthCompletedAt: null,
+            updatedAt: new Date(),
+          },
+        }
+      );
+    }
+    return;
+  }
+
+  // 2. If item exists in Week or Month (or Today but not solved today), just update lastCompletedAt.
+  // Prioritize updating the "highest" bucket if duplicates exist (unlikely but safe).
+  const targetItem = weekItem || monthItem || todayItem;
+
+  if (targetItem) {
+    if (!targetItem.lastCompletedAt || new Date(targetItem.lastCompletedAt) < solvedDate) {
+      await RevisionItem.updateOne(
+        { _id: targetItem._id },
+        { $set: { lastCompletedAt: solvedDate, updatedAt: new Date() } }
+      );
+    }
+    return;
+  }
+
+  // 3. New Item -> Create in Week bucket (pending)
+  await RevisionItem.create({
+    userId,
+    questionKey: `leetcode:${String(slug).toLowerCase()}`,
+    source: 'leetcode',
+    ref: slug,
+    title: title || slug,
+    difficulty: normalizeDifficulty(difficulty),
+    link: link || `https://leetcode.com/problems/${slug}/`,
+    bucket: 'week',
+    bucketDueAt: computeBucketDueAt('week', solvedDate),
+    lastCompletedAt: solvedDate,
+    weekCompletedAt: null, // Pending
+    monthCompletedAt: null,
+  });
 }
 
 async function refreshUserQuestionsFromRecentAccepted({ userId, username, limit = 60 }) {
@@ -87,6 +175,16 @@ async function refreshUserQuestionsFromRecentAccepted({ userId, username, limit 
     const nextRevisionDate = calculateNextRevisionDate({
       solvedDate,
       userSetDifficulty: effectiveDifficulty,
+    });
+
+    // Also update Weekly Revision bucket if applicable
+    await upsertSolvedRevisionItem({
+      userId,
+      slug,
+      title: doc.title,
+      difficulty: effectiveDifficulty,
+      link: `https://leetcode.com/problems/${slug}/`,
+      solvedDate,
     });
 
     ops.push({
@@ -216,6 +314,15 @@ router.post('/my/sync', requireMongo, requireAuth, asyncJsonRoute(async (req, re
     const nextRevisionDate = calculateNextRevisionDate({
       solvedDate,
       userSetDifficulty: userSetDifficulty || difficulty,
+    });
+
+    await upsertSolvedRevisionItem({
+      userId,
+      slug,
+      title: details.title,
+      difficulty: userSetDifficulty || difficulty,
+      link: `https://leetcode.com/problems/${slug}/`,
+      solvedDate,
     });
 
     const setDoc = {

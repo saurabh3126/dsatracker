@@ -34,12 +34,7 @@ function normalizeLeetCodeSlug(input) {
   return s;
 }
 
-function difficultyBadge(difficulty) {
-  const d = String(difficulty || '').toLowerCase();
-  if (d === 'hard') return 'bg-rose-500/15 text-rose-300 ring-rose-500/30';
-  if (d === 'medium') return 'bg-amber-500/15 text-amber-300 ring-amber-500/30';
-  return 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30';
-}
+
 
 function safeTime(value) {
   const t = new Date(value || 0).getTime();
@@ -135,6 +130,7 @@ function sortMonthItems(items) {
   return copy;
 }
 
+// eslint-disable-next-line no-unused-vars
 function BucketHeader({ title, subtitle, icon: Icon, action, onRefresh }) {
   return (
     <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -408,7 +404,6 @@ export default function RevisionBucketsDashboard() {
 
   const [suggestions, setSuggestions] = useState([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
-  const [suggestError, setSuggestError] = useState('');
   const [showSuggest, setShowSuggest] = useState(false);
 
   const [activeTab, setActiveTab] = useState('today');
@@ -440,7 +435,7 @@ export default function RevisionBucketsDashboard() {
       week: weekPending,
       month: monthPending,
     };
-  }, [month, today, week]);
+  }, [month, week]);
 
   const pendingCounts = useMemo(() => {
     const now = new Date();
@@ -459,8 +454,11 @@ export default function RevisionBucketsDashboard() {
 
   async function loadSummary(force = false) {
     setError('');
-    const q = force ? `?refresh=true&_t=${Date.now()}` : '';
-    const json = await apiGet(`/api/revision/summary${q}`);
+    // Use caching logic instead of manual timestamp busting.
+    // If force=true, useCache=false -> fetches fresh -> updates cache.
+    // If force=false, useCache=true -> hits cache.
+    const q = force ? '?refresh=true' : ''; // keep ?refresh=true for backend signal if needed
+    const json = await apiGet(`/api/revision/summary${q}`, { useCache: !force });
     const now = new Date();
     setToday(json.today || []);
     setWeek(json.week || []);
@@ -534,7 +532,6 @@ export default function RevisionBucketsDashboard() {
 
     if (!isLoggedIn) {
       setSuggestions([]);
-      setSuggestError('');
       setSuggestLoading(false);
       return () => {
         cancelled = true;
@@ -543,7 +540,6 @@ export default function RevisionBucketsDashboard() {
 
     if (!q || q.length < 1) {
       setSuggestions([]);
-      setSuggestError('');
       setSuggestLoading(false);
       return () => {
         cancelled = true;
@@ -554,15 +550,13 @@ export default function RevisionBucketsDashboard() {
       (async () => {
         try {
           setSuggestLoading(true);
-          setSuggestError('');
           const json = await apiGet(`/api/catalog/leetcode/suggest?search=${encodeURIComponent(q)}&limit=10`);
           if (!cancelled) {
             setSuggestions(Array.isArray(json?.items) ? json.items : []);
           }
-        } catch (e) {
+        } catch {
           if (!cancelled) {
             setSuggestions([]);
-            setSuggestError(e?.message || 'Failed to load suggestions');
           }
         } finally {
           if (!cancelled) setSuggestLoading(false);
@@ -592,7 +586,7 @@ export default function RevisionBucketsDashboard() {
         setMessage('Added to revision.');
       }
       setSlug('');
-      await loadSummary();
+      await loadSummary(true);
     } catch (e2) {
       setError(e2?.message || 'Failed to add question. Try a slug like "two-sum" or paste the LeetCode problem URL.');
     }
@@ -603,7 +597,7 @@ export default function RevisionBucketsDashboard() {
     setMessage('');
     try {
       await apiPatch(`/api/revision/items/${id}/move`, { bucket: toBucket });
-      await loadSummary();
+      await loadSummary(true);
     } catch (e) {
       setError(e?.message || 'Failed to move item');
     }
@@ -720,7 +714,7 @@ export default function RevisionBucketsDashboard() {
       }
 
       ok = true;
-      await loadSummary();
+      await loadSummary(true);
     } catch (e) {
       if (scope === 'week') setError(e?.message || 'Failed to mark weekly done');
       else if (scope === 'today') setError(e?.message || 'Failed to mark done');

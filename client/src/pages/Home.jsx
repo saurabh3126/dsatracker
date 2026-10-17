@@ -68,8 +68,7 @@ export default function Home() {
 
   useLegacyStyle('home', homeCss);
 
-  const [revTodayTotal, setRevTodayTotal] = useState(0);
-  const [revTodayDue, setRevTodayDue] = useState(0);
+
   const [revWeekTotal, setRevWeekTotal] = useState(0);
   const [revWeekEndsAtMs, setRevWeekEndsAtMs] = useState(null);
 
@@ -93,6 +92,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!isLoggedIn) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTodos([]);
       return;
     }
@@ -131,8 +131,6 @@ export default function Home() {
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     if (!isLoggedIn) {
-      setRevTodayTotal(0);
-      setRevTodayDue(0);
       setRevWeekTotal(0);
       setRevWeekEndsAtMs(null);
       return;
@@ -146,8 +144,6 @@ export default function Home() {
         const week = Array.isArray(summary?.week) ? summary.week : [];
 
         // Home card is weekly-only.
-        setRevTodayTotal(0);
-        setRevTodayDue(0);
         setRevWeekTotal(week.length);
 
         // Align the countdown with the backend's actual week bucket due date.
@@ -218,8 +214,8 @@ export default function Home() {
 
       const payload = {
         access_key: accessKey,
-        subject: `DSA Tracker: ${String(feedback.type || 'Feedback').trim()}`,
-        from_name: String(user?.name || 'DSA Tracker').trim(),
+        subject: `Algonix: ${String(feedback.type || 'Feedback').trim()}`,
+        from_name: String(user?.name || 'Algonix').trim(),
         name: String(user?.name || 'User').trim(),
         email: String(user?.email || '').trim(),
         message: `Type: ${feedback.type}\nUser: ${user?.name || 'User'}${user?.email ? ` <${user.email}>` : ''}\n\n${feedback.message}`,

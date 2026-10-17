@@ -230,18 +230,16 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
     // Only count it as done if the accepted submission happened today.
     if (acceptedMs < todayStart || acceptedMs > todayEnd) continue;
 
-    // If it was already completed during this due day, skip.
-    const lastCompletedAtMs = item?.lastCompletedAt ? new Date(item.lastCompletedAt).getTime() : NaN;
-    if (Number.isFinite(lastCompletedAtMs) && lastCompletedAtMs >= todayStart) continue;
-
     const completedAt = new Date(acceptedMs);
-
     const qk = String(item?.questionKey || '').trim();
     const existingWeekId = qk ? weekByKey.get(qk) : null;
+
     if (existingWeekId) {
       ops.push({
         updateOne: {
           filter: { _id: existingWeekId, userId },
+          // Important: We only update lastCompletedAt.
+          // weekCompletedAt is NEVER auto-set. Week items must wait for Sunday -> Today.
           update: { $set: { lastCompletedAt: completedAt, updatedAt: new Date() } },
         },
       });
@@ -253,6 +251,7 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
       continue;
     }
 
+    // Move Today item -> Week bucket (pending state)
     ops.push({
       updateOne: {
         filter: { _id: item._id, userId },
@@ -262,7 +261,7 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
             // After completing Today's task, move it into the Weekly rotation.
             bucket: 'week',
             bucketDueAt: weeklyDueAtAfterComplete(completedAt),
-            weekCompletedAt: null,
+            weekCompletedAt: null, // Ensure it remains pending in the week bucket
             monthCompletedAt: null,
             updatedAt: new Date(),
           },
@@ -274,6 +273,50 @@ async function autoCompleteTodayItemsFromLeetCode({ userId, latestAcceptedMsBySl
   if (!ops.length) return { updated: 0, reason: 'no_matches' };
   const result = await RevisionItem.bulkWrite(ops, { ordered: false });
   return { updated: result?.modifiedCount || 0, reason: 'ok' };
+}
+
+async function movePendingItemsToTodayBucket(userId, itemsToMove) {
+  if (!itemsToMove || !itemsToMove.length) return { moved: 0 };
+
+  // Create a set of existing "Today" keys to detect collisions.
+  const existingToday = await RevisionItem.find({ userId, bucket: 'today' })
+    .select('questionKey') // Changed syntax slightly, but equivalent
+    .lean();
+  const todayKeys = new Set(existingToday.map((i) => i.questionKey));
+
+  const idsToDelete = [];
+  const idsToUpdate = [];
+
+  for (const item of itemsToMove) {
+    if (todayKeys.has(item.questionKey)) {
+      idsToDelete.push(item._id);
+    } else {
+      idsToUpdate.push(item._id);
+      todayKeys.add(item.questionKey);
+    }
+  }
+
+  if (idsToDelete.length) {
+    await RevisionItem.deleteMany({ _id: { $in: idsToDelete } });
+  }
+
+  let updatedCount = 0;
+  if (idsToUpdate.length) {
+    // Only update if we have IDs to update
+    const res = await RevisionItem.updateMany(
+      { _id: { $in: idsToUpdate } },
+      {
+        $set: {
+          bucket: 'today',
+          bucketDueAt: computeBucketDueAt('today', new Date()),
+          updatedAt: new Date(),
+        },
+      }
+    );
+    updatedCount = res.modifiedCount;
+  }
+
+  return { moved: updatedCount + idsToDelete.length };
 }
 
 async function rolloverOverdueTodayToNextDay({ userId }) {
@@ -310,85 +353,51 @@ async function rolloverOverdueTodayToNextDay({ userId }) {
   return { moved: result?.modifiedCount || 0 };
 }
 
-async function rolloverOverdueMonthToNextMonth({ userId }) {
-  // Month bucket items are due at end-of-month. If the month has rolled over and
-  // the user didn't complete them, keep them in the Month bucket and extend the
-  // due date to the end of the current month.
+async function moveMonthToTodayIfEndOfMonth({ userId }) {
   const now = new Date();
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  // Check if today is the last day of the month.
+  // We do this by checking if tomorrow is the 1st.
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const isLastDay = tomorrow.getDate() === 1;
 
-  const query = {
-    userId,
-    bucket: 'month',
-    monthCompletedAt: null,
-    $or: [{ bucketDueAt: { $lt: startOfThisMonth } }, { bucketDueAt: null }],
-  };
+  if (!isLastDay) return { moved: 0 };
 
-  const result = await RevisionItem.updateMany(query, {
-    $set: {
-      bucket: 'month',
-      bucketDueAt: computeBucketDueAt('month', now),
-      updatedAt: new Date(),
-    },
-  });
-
-  return { moved: result?.modifiedCount || 0 };
+  // Move ALL monthly items logic:
+  // "month will go ... on last day of month"
+  const items = await RevisionItem.find({ userId, bucket: 'month' }).lean();
+  return movePendingItemsToTodayBucket(userId, items);
 }
 
 async function moveOverdueWeekToTodayOnSunday({ userId }) {
-  // If today is Sunday (after 5:30 AM IST), move all overdue weekly items into the Today bucket
-  // so the user sees them as "due today" tasks.
+  // If today is Sunday (after 5:30 AM IST = 00:00 UTC), move all WEEK items into Today.
+  // "weekly ... should move to today all together on sunday's"
   const now = new Date();
-  
-  // Weekly reset is effectively around Sunday transitions.
-  // User requested this happens "by Sunday 5:30 AM IST".
-  // 5:30 AM IST is 00:00 UTC. So we simpler check for Sunday in UTC.
   const utcDay = now.getUTCDay(); // 0 = Sunday
+  
   if (utcDay !== 0) return { moved: 0 };
 
-  const startDayMs = startOfIstDay(now).getTime();
-
-  const result = await RevisionItem.updateMany(
-    {
-      userId,
-      bucket: 'week',
-      bucketDueAt: { $lt: new Date(startDayMs) },
-    },
-    {
-      $set: {
-        bucket: 'today',
-        bucketDueAt: computeBucketDueAt('today', now),
-        updatedAt: new Date(),
-      },
-    },
-  );
-
-  return { moved: result?.modifiedCount || 0 };
+  // Fetch all pending Week items
+  const items = await RevisionItem.find({ userId, bucket: 'week' }).lean();
+  return movePendingItemsToTodayBucket(userId, items);
 }
 
-async function rolloverOverdueWeekToNextWeek({ userId }) {
-  // Weekly reset boundary is Sunday 12:00 AM IST.
-  // If a Weekly item is overdue (its dueAt is before the start of the current IST day),
-  // keep it in Week but extend it to the next upcoming Sunday.
+// Helper to move ANY overdue items (past their due date) to Today bucket.
+async function moveOverdueItemsToToday({ userId, bucket }) {
   const now = new Date();
-  const startDayMs = startOfIstDay(now).getTime();
+  // Using start of current day as cutoff. If due date was strictly before today, it's overdue.
+  // For Week: Deadline is usually Sunday. So Monday morning it is overdue.
+  // For Month: Deadline is usually Last Day. So 1st of next Month it is overdue.
+  const cutoff = startOfIstDay(now);
 
-  const result = await RevisionItem.updateMany(
-    {
-      userId,
-      bucket: 'week',
-      bucketDueAt: { $lt: new Date(startDayMs) },
-    },
-    {
-      $set: {
-        bucket: 'week',
-        bucketDueAt: computeBucketDueAt('week', now),
-        updatedAt: new Date(),
-      },
-    },
-  );
+  const items = await RevisionItem.find({
+    userId,
+    bucket,
+    bucketDueAt: { $lt: cutoff },
+  }).lean();
 
-  return { moved: result?.modifiedCount || 0 };
+  return movePendingItemsToTodayBucket(userId, items);
 }
 
 // GET /api/revision/summary
@@ -555,27 +564,42 @@ router.get('/summary', requireMongo, requireAuth, async (req, res) => {
     // Non-fatal.
   }
 
-  // Weekly boundary rollover:
-  // 1. If it's Sunday, move overdue week items to Today.
+  // Handle Weekly items:
+  // 1. If today is Sunday (00:00 UTC+), move specifically Sunday-due items to Today.
+  // 2. If valid weekly item is OVERDUE (due date was < Today), move to Today so user sees it.
   try {
-    await moveOverdueWeekToTodayOnSunday({ userId });
+    // If it is Sunday (UTC day 0), act "on Sunday".
+    const utcDay = new Date().getUTCDay();
+    if (utcDay === 0) {
+      await moveOverdueWeekToTodayOnSunday({ userId });
+    } else {
+      // If it is NOT Sunday (e.g. Monday), check for any lingering overdue items (missed Sunday).
+      await moveOverdueItemsToToday({ userId, bucket: 'week' });
+    }
   } catch (e) {
     // Non-fatal.
   }
 
-  // 2. Otherwise/Remaining: carry overdue weekly items forward to NEXT week.
+  // Handle Monthly items:
+  // 1. If today is Last Day of Month, move specific items to Today.
+  // 2. If valid monthly item is OVERDUE (due date was < Today, e.g. last month), move to Today.
   try {
-    await rolloverOverdueWeekToNextWeek({ userId });
+    // Check if Last Day of Month
+    const tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
+    const isLastDay = tmr.getDate() === 1;
+    
+    if (isLastDay) {
+      await moveMonthToTodayIfEndOfMonth({ userId });
+    } else {
+      // If NOT Last Day (e.g. 1st of month), catch overdue items.
+      await moveOverdueItemsToToday({ userId, bucket: 'month' });
+    }
   } catch (e) {
     // Non-fatal.
   }
 
-  // Month boundary rollover: carry unfinished monthly items forward.
-  try {
-    await rolloverOverdueMonthToNextMonth({ userId });
-  } catch (e) {
-    // Non-fatal.
-  }
+  // Removed old rolloverOverdueWeekToNextWeek / rolloverOverdueMonthToNextMonth
+  // because we now aggressively move overdue items to Today instead of delaying them.
 
   const items = await RevisionItem.find({ userId })
     // monthCompletedAt= null items first => completed monthly items naturally go to bottom.
@@ -782,16 +806,12 @@ router.patch('/items/:id/move', requireMongo, requireAuth, async (req, res) => {
 });
 
 function weeklyDueAtAfterComplete(now) {
-  // Rule (task-day boundary is 12:00 AM IST):
-  // - If completed on Fri/Sat task-days (i.e. Fri/Sat IST), schedule next Sunday.
-  // - Otherwise schedule the upcoming Sunday.
-  const d = new Date(Number(now));
-  // Shift to IST to check day
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istDate = new Date(d.getTime() + istOffset);
-  const istDay = istDate.getUTCDay(); // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
-  const afterFridayCutoff = istDay === 5 || istDay === 6;
-  return afterFridayCutoff ? getNextSunday(d) : getUpcomingSunday(d);
+  // Use shared logic from revisionBuckets.js to ensure consistency.
+  // Rule (task-day boundary is 5:30 AM IST / 00:00 UTC):
+  // - Mon-Thu IST: Upcoming Sunday.
+  // - Fri-Sat IST: Next Sunday.
+  // - Sun IST (before 5:30 AM): Upcoming Sunday (effectively today).
+  return computeBucketDueAt('week', now);
 }
 
 // POST /api/revision/items/:id/complete
@@ -855,8 +875,9 @@ router.post('/items/:id/complete', requireMongo, requireAuth, async (req, res) =
   const difficulty = normalizeDifficulty(item.difficulty);
   const isEasy = difficulty === 'Easy' || !difficulty;
   const isMediumOrHard = difficulty === 'Medium' || difficulty === 'Hard';
+  const isSunday = now.getUTCDay() === 0;
 
-  if (isMediumOrHard) {
+  if (isMediumOrHard || isSunday) {
     item.bucket = 'month';
     item.bucketDueAt = getEndOfMonth(now);
     await item.save();

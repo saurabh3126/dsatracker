@@ -120,7 +120,7 @@ export default function TodayTask() {
 
   const [potd, setPotd] = useState(null);
   const [potdSolved, setPotdSolved] = useState(false);
-  const [potdReason, setPotdReason] = useState('');
+
   const [todayBucket, setTodayBucket] = useState([]);
 
   const [dayKey, setDayKey] = useState(() => utcDateKey(new Date()));
@@ -278,19 +278,12 @@ export default function TodayTask() {
       setError('');
 
       try {
-        const potdRes = await fetch(isAuthed ? '/api/leetcode/my/potd-status' : '/api/leetcode/potd-status', {
-          headers,
-        });
-        const revisionSummary = isAuthed ? await apiGet('/api/revision/summary').catch(() => null) : null;
-
-        const potdJson = await potdRes.json().catch(() => null);
+        const potdJson = await apiGet(isAuthed ? '/api/leetcode/my/potd-status' : '/api/leetcode/potd-status', { useCache: true });
+        const revisionSummary = isAuthed ? await apiGet('/api/revision/summary', { useCache: true }).catch(() => null) : null;
 
         if (!cancelled) {
-          if (!potdRes.ok) throw new Error(potdJson?.error || 'Failed to load POTD status');
-
           setPotd(potdJson?.potd || null);
           setPotdSolved(Boolean(potdJson?.solved));
-          setPotdReason(String(potdJson?.reason || ''));
           setTodayBucket(Array.isArray(revisionSummary?.today) ? revisionSummary.today : []);
         }
       } catch (e) {

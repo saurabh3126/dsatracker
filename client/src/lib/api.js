@@ -51,16 +51,56 @@ function toUserFacingErrorMessage(res, json) {
   return serverError || `Request failed: ${status || 'unknown'}`;
 }
 
-export async function apiGet(path, options) {
-  const res = await fetch(path, {
-    ...(options || {}),
-    headers: withAuthHeaders(options?.headers),
-  });
-  const json = await res.json().catch(() => null);
-  if (!res.ok) {
-    throw new Error(toUserFacingErrorMessage(res, json));
+const API_CACHE = new Map();
+
+export function clearApiCache(pathOrRegex) {
+  if (!pathOrRegex) {
+    API_CACHE.clear();
+    return;
   }
-  return json;
+  if (typeof pathOrRegex === 'string') {
+    API_CACHE.delete(pathOrRegex);
+    return;
+  }
+  if (pathOrRegex instanceof RegExp) {
+    for (const key of API_CACHE.keys()) {
+      if (pathOrRegex.test(key)) API_CACHE.delete(key);
+    }
+  }
+}
+
+export async function apiGet(path, options) {
+  const useCache = options?.useCache;
+
+  // 1. Try to serve from cache if requested
+  if (useCache && API_CACHE.has(path)) {
+    const cached = API_CACHE.get(path);
+    return Promise.resolve(cached);
+  }
+
+  // 2. Fetch fresh
+  const promise = (async () => {
+    try {
+      const res = await fetch(path, {
+        ...(options || {}),
+        headers: withAuthHeaders(options?.headers),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(toUserFacingErrorMessage(res, json));
+      }
+      return json;
+    } catch (err) {
+      if (useCache) API_CACHE.delete(path);
+      throw err;
+    }
+  })();
+
+  // 3. Keep cache fresh: update it whenever we fetch successfully (whether requested via useCache or not)
+  // This ensures that manual refreshes (without useCache) automatically update the stored data for future cached calls.
+  API_CACHE.set(path, promise);
+
+  return promise;
 }
 
 export async function apiPost(path, body, options) {

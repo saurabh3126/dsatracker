@@ -17,11 +17,9 @@ function run(cmd) {
   return execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
 }
 
-function getWindowsPidsForPort(port) {
-  // netstat output contains lines like:
-  //   TCP    0.0.0.0:3001     0.0.0.0:0      LISTENING       1234
-  const out = run('netstat -ano -p tcp');
-  const pids = [];
+function getListeningPidsWin() {
+  const out = run('netstat -ano');
+  const portMap = new Map();
 
   for (const line of out.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -32,18 +30,26 @@ function getWindowsPidsForPort(port) {
     const parts = trimmed.split(/\s+/);
     if (parts.length < 5) continue;
 
-    const local = parts[1] || '';
-    const pid = Number(parts[4]);
+    const localAddr = parts[1];
+    const pid = Number(parts[parts.length - 1]);
 
-    if (!Number.isInteger(pid) || pid <= 0) continue;
-    if (local.endsWith(':' + String(port))) pids.push(pid);
+    if (!localAddr || !Number.isInteger(pid) || pid <= 0) continue;
+
+    const lastColonIdx = localAddr.lastIndexOf(':');
+    if (lastColonIdx === -1) continue;
+
+    const portStr = localAddr.slice(lastColonIdx + 1);
+    const port = Number(portStr);
+
+    if (Number.isInteger(port)) {
+      if (!portMap.has(port)) portMap.set(port, []);
+      portMap.get(port).push(pid);
+    }
   }
-
-  return uniq(pids);
+  return portMap;
 }
 
 function getUnixPidsForPort(port) {
-  // Best effort; if lsof isn't installed, we just return none.
   try {
     const out = run(`lsof -ti tcp:${port}`);
     return uniq(
@@ -59,7 +65,7 @@ function getUnixPidsForPort(port) {
 
 function killWindowsPid(pid) {
   try {
-    run(`taskkill /PID ${pid} /F`);
+    run(`taskkill /PID ${pid} /F /T`);
     return true;
   } catch {
     return false;
@@ -83,21 +89,30 @@ function main() {
   }
 
   const isWindows = process.platform === 'win32';
-  const pidByPort = new Map();
+  let pidsToKill = [];
 
-  for (const port of ports) {
-    const pids = isWindows ? getWindowsPidsForPort(port) : getUnixPidsForPort(port);
-    pidByPort.set(port, pids);
+  if (isWindows) {
+    const listening = getListeningPidsWin();
+    for (const port of ports) {
+      if (listening.has(port)) {
+        pidsToKill.push(...listening.get(port));
+      }
+    }
+  } else {
+    for (const port of ports) {
+      pidsToKill.push(...getUnixPidsForPort(port));
+    }
   }
 
-  const allPids = uniq(Array.from(pidByPort.values()).flat());
-  if (allPids.length === 0) {
+  const uniquePids = uniq(pidsToKill);
+
+  if (uniquePids.length === 0) {
     console.log(`killPorts: ports already free (${ports.join(', ')})`);
     process.exit(0);
   }
 
-  console.log(`killPorts: killing PID(s) [${allPids.join(', ')}] for port(s) [${ports.join(', ')}]`);
-  for (const pid of allPids) {
+  console.log(`killPorts: killing PID(s) [${uniquePids.join(', ')}]`);
+  for (const pid of uniquePids) {
     const ok = isWindows ? killWindowsPid(pid) : killUnixPid(pid);
     if (!ok) console.log(`killPorts: failed to kill ${pid} (may already be stopped)`);
   }
