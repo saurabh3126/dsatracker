@@ -60,7 +60,7 @@ export default function QuestionsCatalog() {
   const [selectedTopicKey, setSelectedTopicKey] = useState('arrays');
   const [difficulty, setDifficulty] = useState('');
   const [sort, setSort] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Dropdown States

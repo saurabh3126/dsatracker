@@ -5,8 +5,10 @@ import Navbar from './Navbar.jsx';
 export default function AppLayout() {
   const { pathname } = useLocation();
   const isAdd = pathname.startsWith('/add');
-  const isHome = pathname === '/';
+  const isHome = pathname === '/classic';
   const isAuth = pathname === '/login' || pathname === '/signup';
+
+  if (pathname === '/') return <Outlet />;
 
   return (
     <div

@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/AppLayout.jsx';
 import Home from './pages/Home.jsx';
+import AlgonixHome from './pages/AlgonixHome.jsx';
 import QuestionsCatalog from './pages/QuestionsCatalog.jsx';
 import AddQuestion from './pages/AddQuestion.jsx';
 import Revision from './pages/Revision.jsx';
@@ -17,7 +18,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<AlgonixHome />} />
+          <Route path="/classic" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/logout" element={<Logout />} />
